@@ -1,0 +1,123 @@
+name: smart-study-foundation
+
+x-app: &app
+  build: .
+  image: smart-study-foundation:local
+  init: true
+  restart: unless-stopped
+  environment: &app-env
+    STUDYHUB_DATABASE_URL: postgresql+asyncpg://studyhub_app:${APP_DATABASE_PASSWORD:?Run init_env.py}@postgres:5432/studyhub
+    STUDYHUB_CACHE_URL: redis://:${CACHE_PASSWORD:?Run init_env.py}@cache:6379/0
+    STUDYHUB_CONTROL_URL: redis://:${CONTROL_PASSWORD:?Run init_env.py}@control:6379/0
+    STUDYHUB_BROKER_URL: redis://:${BROKER_PASSWORD:?Run init_env.py}@broker:6379/0
+    STUDYHUB_JWT_SECRET: ${STUDYHUB_JWT_SECRET:?Run init_env.py}
+    STUDYHUB_ENVIRONMENT: ${STUDYHUB_ENVIRONMENT:-development}
+    STUDYHUB_NAMESPACE: ${STUDYHUB_NAMESPACE:-studyhub:dev}
+    STUDYHUB_ALLOWED_ORIGINS: ${STUDYHUB_ALLOWED_ORIGINS:-["http://localhost:3000"]}
+    STUDYHUB_ALLOWED_HOSTS: ${STUDYHUB_ALLOWED_HOSTS:-["localhost","127.0.0.1","testserver"]}
+    STUDYHUB_OIDC_ISSUER: ${STUDYHUB_OIDC_ISSUER:-}
+    STUDYHUB_OIDC_CLIENT_ID: ${STUDYHUB_OIDC_CLIENT_ID:-}
+    STUDYHUB_OIDC_CLIENT_SECRET: ${STUDYHUB_OIDC_CLIENT_SECRET:-}
+    STUDYHUB_OIDC_REDIRECT_URI: ${STUDYHUB_OIDC_REDIRECT_URI:-}
+    STUDYHUB_OIDC_ENDPOINT_ORIGINS: ${STUDYHUB_OIDC_ENDPOINT_ORIGINS:-[]}
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: studyhub
+      POSTGRES_DB: studyhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run init_env.py}
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studyhub -d studyhub"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  cache:
+    image: redis:7.4-alpine
+    environment:
+      REDIS_PASSWORD: ${CACHE_PASSWORD:?Run init_env.py}
+    command: ["sh", "-c", 'exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""']
+    ports: ["127.0.0.1:56379:6379"]
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  control:
+    image: redis:7.4-alpine
+    environment:
+      REDIS_PASSWORD: ${CONTROL_PASSWORD:?Run init_env.py}
+    command: ["sh", "-c", 'exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes']
+    ports: ["127.0.0.1:56380:6379"]
+    volumes: ["control-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  broker:
+    image: redis:7.4-alpine
+    environment:
+      REDIS_PASSWORD: ${BROKER_PASSWORD:?Run init_env.py}
+    command: ["sh", "-c", 'exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync everysec']
+    ports: ["127.0.0.1:56381:6379"]
+    volumes: ["broker-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    restart: "no"
+    environment:
+      <<: *app-env
+      STUDYHUB_MIGRATION_DATABASE_URL: postgresql+asyncpg://studyhub:${POSTGRES_PASSWORD:?Run init_env.py}@postgres:5432/studyhub
+    command: ["sh", "-c", 'alembic upgrade head && if [ "$$STUDYHUB_ENVIRONMENT" != "production" ]; then python -m studyhub.provision; fi']
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      control: {condition: service_healthy}
+      broker: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "studyhub.worker.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+
+  beat:
+    <<: *app
+    command: ["celery", "-A", "studyhub.worker.celery_app:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+
+volumes:
+  postgres-data:
+  control-data:
+  broker-data:

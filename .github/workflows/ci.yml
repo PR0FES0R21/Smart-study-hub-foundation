@@ -1,0 +1,43 @@
+name: foundation-ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: studyhub
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: studyhub
+        ports: ["55432:5432"]
+        options: --health-cmd "pg_isready -U studyhub" --health-interval 3s --health-timeout 2s --health-retries 20
+      cache:
+        image: redis:7.4-alpine
+        ports: ["56379:6379"]
+      control:
+        image: redis:7.4-alpine
+        ports: ["56380:6379"]
+      broker:
+        image: redis:7.4-alpine
+        ports: ["56381:6379"]
+    env:
+      STUDYHUB_ENVIRONMENT: test
+      STUDYHUB_DATABASE_URL: postgresql+asyncpg://studyhub:ci-only-password@localhost:55432/studyhub
+      STUDYHUB_CACHE_URL: redis://localhost:56379/0
+      STUDYHUB_CONTROL_URL: redis://localhost:56380/0
+      STUDYHUB_BROKER_URL: redis://localhost:56381/0
+      STUDYHUB_JWT_SECRET: ci-only-not-for-production-secret-0123456789
+      STUDYHUB_RUN_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.5"
+          python-version: "3.12"
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
