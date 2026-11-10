@@ -23,6 +23,7 @@ beat dan IdP lokal. Seluruh tes dijalankan dengan layanan nyata di lingkungan ke
 | Alertmanager config | Lulus dengan amtool v0.28.1 |
 | Caddyfile | `caddy validate` lulus dengan Caddy v2.10.2 |
 | Ekspresi jadwal harian systemd | `systemd-analyze calendar` lulus |
+| Workflow GitHub Actions | Lolos validasi statis actionlint v1.7.7; eksekusi GitHub belum berjalan |
 
 Binary alat verifikasi diunduh dari rilis resmi dan checksum distribusi diperiksa.
 Tes restore menggunakan repository terenkripsi lokal, bukan bucket produksi.
@@ -37,6 +38,10 @@ menggantikan build image dan smoke test gabungan stack pada VPS tujuan.
 Belum ada benchmark kapasitas, pengukuran RTO, HA/PITR, audit penetrasi, atau
 verifikasi IdP/bucket/penerima alert produksi. CI juga harus diperiksa terpisah
 di GitHub; hasil suite di atas berasal dari lingkungan kerja ini.
+Push implementasi v0.3 memicu [run GitHub 42769885554](https://github.com/PR0FES0R21/Smart-study-hub-foundation/actions/runs/42769885554)
+dengan `startup_failure`, tanpa job maupun check-run/annotation. Workflow terdaftar
+aktif dan validasi statis lulus, tetapi penyebab startup tidak disediakan API.
+Status ini bukan bukti tes CI lulus atau kegagalan salah satu tes aplikasi.
 
 ## Riwayat v0.2 — 9 November 2026
 
