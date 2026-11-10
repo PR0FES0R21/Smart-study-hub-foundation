@@ -1,4 +1,4 @@
-# Panduan teknis Smart Study Hub Foundation v0.3
+# Panduan teknis Smart Study Hub Foundation v0.3.1
 
 Dokumen ini menjelaskan apa yang dipakai, alasan pemilihannya, dan batasnya.
 Fondasi ini mendukung beberapa sekolah SMP, SMA, dan SMK dalam satu backend.
@@ -77,7 +77,8 @@ Cache menyimpan hasil sementara untuk mempercepat baca. Redis AOF membantu Redis
 bertahan dari restart. Backup menyimpan salinan yang bisa dipulihkan setelah data
 terhapus, rusak, atau VPS hilang. Ketiganya menyelesaikan masalah berbeda.
 
-Invalidasi cache memakai generation key per sekolah dan outbox; TTL membatasi
+Invalidasi cache memakai generation token acak per sekolah dan outbox; token tidak
+diulang ketika key terhapus oleh eviction. TTL membatasi
 masa data usang ketika pengiriman invalidasi terganggu. Cache gagal tidak boleh
 menghilangkan data CRUD. PostgreSQL tetap dibaca untuk operasi yang perlu data pasti.
 
@@ -134,4 +135,5 @@ Saat skala meningkat ukur kapasitas dahulu, kemudian evaluasi PgBouncer,
 replica, cluster, distributed tracing, dan pemisahan layanan berdasarkan kebutuhan.
 
 Lanjutkan ke [backup dan restore](BACKUP_DAN_RESTORE.md),
-[operasional VPS](OPERASIONAL_VPS.md), dan [hasil verifikasi](verification.md).
+[operasional VPS](OPERASIONAL_VPS.md), [perbaikan audit dan upgrade v0.3.1](SECURITY_FIXES_0_3_1.md),
+dan [hasil verifikasi](verification.md).

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from redis.exceptions import RedisError
+from sqlalchemy.exc import SQLAlchemyError
 
 from studyhub.api.dependencies import bind_school, load_principal
 from studyhub.core.security import token_hash
@@ -39,7 +40,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.close(code=1008)
                 return
             await bind_school(db, principal, school_id)
-    except (RedisError, ValueError, KeyError, TypeError, HTTPException):
+    except (RedisError, SQLAlchemyError, ValueError, KeyError, TypeError, HTTPException):
         await websocket.close(code=1013)
         return
     try:
@@ -69,15 +70,26 @@ async def websocket_endpoint(websocket: WebSocket):
         window = time.monotonic()
         while True:
             try:
-                message = await asyncio.wait_for(websocket.receive_text(), timeout=20)
-                if len(message) > 128:
+                frame = await asyncio.wait_for(websocket.receive(), timeout=20)
+                if frame["type"] == "websocket.disconnect":
+                    return
+                message = frame.get("text")
+                if not isinstance(message, str):
+                    await websocket.close(code=1003)
+                    return
+                if len(message.encode("utf-8")) > 128:
                     await websocket.close(code=1009)
+                    return
+                try:
+                    payload = json.loads(message)
+                except ValueError:
+                    await websocket.close(code=1007)
                     return
                 now = time.monotonic()
                 if now - window >= 60:
                     window, messages = now, 0
                 messages += 1
-                if messages > 60 or json.loads(message) != {"type": "ping"}:
+                if messages > 60 or payload != {"type": "ping"}:
                     await websocket.close(code=1008)
                     return
                 if not connection.queue.full():
@@ -103,7 +115,12 @@ async def websocket_endpoint(websocket: WebSocket):
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
             task.result()
-    except (WebSocketDisconnect, TimeoutError, ValueError, RuntimeError):
+    except (SQLAlchemyError, RedisError):
+        try:
+            await websocket.close(code=1013)
+        except (WebSocketDisconnect, OSError, RuntimeError):
+            pass
+    except (WebSocketDisconnect, TimeoutError, ValueError, RuntimeError, OSError):
         pass
     finally:
         state.hub.disconnect(connection)

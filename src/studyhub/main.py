@@ -102,7 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Smart Study Hub Foundation",
-        version="0.3.0",
+        version="0.3.1",
         lifespan=lifespan,
         docs_url=None if settings.environment == "production" else "/docs",
         redoc_url=None,

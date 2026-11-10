@@ -2,6 +2,8 @@ from typing import Any
 
 import httpx
 
+from studyhub.infrastructure.http_json import fetch_json
+
 
 class IntegrationClient:
     """Server-configured outbound adapter. No user-supplied URLs or redirects."""
@@ -10,6 +12,4 @@ class IntegrationClient:
         self.client = client
 
     async def get_capabilities(self) -> dict[str, Any]:
-        response = await self.client.get("capabilities")
-        response.raise_for_status()
-        return response.json()
+        return await fetch_json(self.client, "GET", "capabilities")

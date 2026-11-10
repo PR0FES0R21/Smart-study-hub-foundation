@@ -286,6 +286,7 @@ sys.exit(result.returncode)
     )
     command = [sys.executable, "ops/backup/backup.py"]
     with stack["engine"].connect() as conn:
+        expected_school_count = conn.execute(text("SELECT count(*) FROM schools")).scalar()
         expected_memberships = conn.execute(
             text("SELECT school_id, user_id, role FROM memberships ORDER BY school_id, user_id")
         ).all()
@@ -310,7 +311,10 @@ sys.exit(result.returncode)
         restored = create_engine(source_url.set(database=database))
         try:
             with restored.connect() as conn:
-                assert conn.execute(text("SELECT count(*) FROM schools")).scalar() == 3
+                assert (
+                    conn.execute(text("SELECT count(*) FROM schools")).scalar()
+                    == expected_school_count
+                )
                 assert (
                     conn.execute(
                         text(

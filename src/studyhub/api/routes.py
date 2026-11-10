@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -219,10 +219,53 @@ async def subject_delete(
 
 @router.post("/jobs/subject-report", response_model=JobRead, status_code=202, tags=["jobs"])
 async def report_job(
+    request: Request,
     idempotency_key: str = Header(min_length=8, max_length=100),
     principal: Principal = Depends(educator),
     db: AsyncSession = Depends(database),
 ):
+    existing = await db.scalar(
+        select(Job).where(
+            Job.school_id == principal.school_id,
+            Job.owner_id == principal.user.id,
+            Job.idempotency_key == idempotency_key,
+        )
+    )
+    if existing:
+        return existing
+    state = request.app.state
+    await rate_limit(
+        state.control, state.settings.namespace, f"jobs:user:{principal.user.id}", 20, 60
+    )
+    await rate_limit(
+        state.control, state.settings.namespace, f"jobs:school:{principal.school_id}", 100, 60
+    )
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"jobs:{principal.school_id}"},
+    )
+    # Recheck after the lock: a concurrent request may have created the same job.
+    existing = await db.scalar(
+        select(Job).where(
+            Job.school_id == principal.school_id,
+            Job.owner_id == principal.user.id,
+            Job.idempotency_key == idempotency_key,
+        )
+    )
+    if existing:
+        return existing
+    pending = (
+        await db.scalars(
+            select(Job.id)
+            .where(
+                Job.school_id == principal.school_id,
+                Job.status == "pending",
+            )
+            .limit(100)
+        )
+    ).all()
+    if len(pending) >= 100:
+        raise HTTPException(429, "School job capacity reached", headers={"Retry-After": "60"})
     # The owner+key constraint protects retries and concurrent submissions.
     job_id = await db.scalar(
         insert(Job)

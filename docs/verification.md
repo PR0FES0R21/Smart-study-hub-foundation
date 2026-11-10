@@ -1,4 +1,36 @@
-# Hasil verifikasi v0.3 — 10 November 2026
+# Hasil verifikasi v0.3.1 — 10 November 2026
+
+Seluruh perbaikan audit telah diterapkan ke source repository utama. Pengujian
+menggunakan PostgreSQL 16, tiga Redis 7.4, dua API, Celery prefork/beat, IdP lokal
+dan Restic nyata. Ringkasan perubahan serta langkah deployment ada pada
+[catatan perbaikan keamanan](SECURITY_FIXES_0_3_1.md).
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Ruff lint dan format; git diff whitespace | Lulus |
+| Dependency lock v0.3.1, `uv sync --frozen --offline` | Lulus |
+| Suite unit + integrasi pada source utama | **46 passed**, 37,02 detik |
+| Login lokal akun SSO-only platform admin | Ditolak HTTP 401 |
+| Upgrade migrasi keamanan | Session akun tanpa password dicabut; session akun dengan password dipertahankan |
+| Downgrade migrasi keamanan | Tidak mengaktifkan kembali session yang sudah dicabut |
+| Penautan akun global oleh admin sekolah biasa | Ditolak; profil target tetap tidak terlihat |
+| Rate limit job + retry idempoten | Job baru dibatasi; retry key yang sudah ada tetap mengembalikan ID yang sama |
+| Kapasitas pending dengan empat koneksi DB bersamaan | Hanya satu job diterima ketika tersisa satu slot; total 100 pending dan satu outbox baru |
+| Eviction key generation cache | Statistik versi lama tidak digunakan kembali |
+| Frame biner WebSocket, kuota slow consumer dan index penerima | Lulus regression tests |
+| Streaming JSON upstream di atas budget | Ditolak; alur OIDC tetap lulus |
+| Backup + restore dengan upload manifest.json | Lulus pada repository terenkripsi dan database tes terpisah |
+| Kegagalan sementara webhook recovery | Dicoba ulang pada pemeriksaan berikutnya |
+| Login/refresh/replay/logout, tenant RLS, CRUD, job, WebSocket lintas proses | Tetap lulus |
+
+CI GitHub diperiksa terpisah setelah push; kelulusan di atas adalah hasil lokal,
+bukan klaim bahwa runner GitHub berhasil. Riwayat v0.3 mengalami startup_failure
+sebelum ada job. Build image gabungan belum dijalankan ulang karena keterbatasan
+disk; deployment domain, IdP produksi, bucket offsite dan receiver alert nyata
+tetap memerlukan konfigurasi host tujuan. Tidak ada benchmark besar atau scan CVE
+dependency/image baru pada rilis ini.
+
+## Riwayat v0.3 — 10 November 2026
 
 Python 3.12, PostgreSQL 16, tiga Redis 7.4, dua proses API, worker Celery prefork,
 beat dan IdP lokal. Seluruh tes dijalankan dengan layanan nyata di lingkungan kerja.

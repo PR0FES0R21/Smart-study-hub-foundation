@@ -4,6 +4,11 @@ Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
 
+Rilis **0.3.1** menerapkan perbaikan audit autentikasi, enrollment, cache,
+WebSocket, admission job, respons upstream, dan backup/watchdog. Baca
+[catatan perbaikan dan urutan upgrade](docs/SECURITY_FIXES_0_3_1.md): migrasi
+mencabut sesi lama akun tanpa password lokal, dan API/worker harus diperbarui bersama.
+
 Versi 0.3 menambahkan backup terenkripsi/restore, jadwal systemd independen,
 logging berkorelasi dan audit dasar, metrik/alert privat, cleanup operasional,
 rotasi log, serta konfigurasi HTTPS produksi. Mulai belajar dari

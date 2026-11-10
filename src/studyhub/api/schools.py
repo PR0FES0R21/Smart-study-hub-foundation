@@ -87,6 +87,8 @@ async def add_membership(
     principal: Principal = Depends(administrator),
     db: AsyncSession = Depends(database),
 ):
+    if not principal.user.is_platform_admin:
+        raise HTTPException(403, "Global account linking requires a platform administrator")
     if not await db.get(User, payload.user_id):
         raise HTTPException(404, "User not found")
     db.add(Membership(school_id=principal.school_id, **payload.model_dump()))

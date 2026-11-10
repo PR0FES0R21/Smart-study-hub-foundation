@@ -99,6 +99,10 @@ docker compose --env-file /etc/studyhub/app.env -f compose.yaml -f compose.backu
 ```
 
 Runner mengunduh snapshot, memverifikasi checksum, lalu restore satu transaksi.
+Manifest database dibaca hanya dari direktori staging snapshot; file upload
+bernama `manifest.json` tidak ikut dipilih. Jika path state pada host pemulihan
+berbeda, set `STUDYHUB_RESTORE_SOURCE_STATE_DIR` ke path saat snapshot dibuat
+(umumnya `/backup/state` di container). Nilai ini harus berupa path absolut.
 Tabel sekolah, user, subject dan versi migrasi diperiksa. Data target tetap ada
 untuk pemeriksaan manual; perintah kedua akan ditolak karena target sudah terisi.
 Gunakan target kosong baru untuk latihan berikutnya. Tetapkan jadwal latihan

@@ -55,7 +55,8 @@ def main():
     except (OSError, ValueError):
         previous = {}
     stamp = time.time()
-    changed = failures != previous.get("failures", [])
+    last_notified = previous.get("notified_failures", previous.get("failures", []))
+    changed = failures != last_notified
     notify = changed or (failures and stamp - previous.get("notified_at", 0) >= 1800)
     notified = previous.get("notified_at", 0)
     secret = os.environ.get("STUDYHUB_OPS_WEBHOOK_URL_FILE")
@@ -73,11 +74,19 @@ def main():
             with urlopen(request, timeout=10):
                 pass
             notified = stamp
+            last_notified = failures
         except Exception:
             print(json.dumps({"event": "watch_notification_failed"}), flush=True)
     temporary = file.with_suffix(".tmp")
     temporary.write_text(
-        json.dumps({"checked_at": stamp, "failures": failures, "notified_at": notified})
+        json.dumps(
+            {
+                "checked_at": stamp,
+                "failures": failures,
+                "notified_at": notified,
+                "notified_failures": last_notified,
+            }
+        )
     )
     temporary.replace(file)
     print(

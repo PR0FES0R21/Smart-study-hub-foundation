@@ -4,8 +4,8 @@
 
 `users` adalah identitas global. `memberships(school_id,user_id)` menyimpan role
 admin/teacher/student dan status aktif per sekolah. Satu orang dapat menjadi guru
-di sekolah A dan admin di B. `is_platform_admin` hanya mengizinkan provisioning
-sekolah dan pemetaan identitas SSO; tidak membypass membership tenant.
+di sekolah A dan admin di B. `is_platform_admin` mengizinkan provisioning
+sekolah, pemetaan identitas SSO, dan penautan akun global; tidak membypass membership tenant.
 
 Login/refresh menghasilkan session identitas global. Pilih sekolah melalui
 `GET /api/v1/schools`, kemudian kirim **X-School-ID: UUID** pada endpoint akademik,
@@ -19,13 +19,15 @@ Endpoint tambahan:
 | `POST /api/v1/schools` | Platform admin membuat sekolah dan menjadi admin sekolah itu |
 | `GET /api/v1/schools` | Sekolah aktif yang diikuti pengguna, beserta role |
 | `GET /api/v1/schools/current` | Konteks, role dan capabilities jenjang |
-| `POST /api/v1/schools/current/memberships` | Admin sekolah menambahkan user global yang sudah diketahui UUID-nya |
+| `POST /api/v1/schools/current/memberships` | Platform admin yang juga admin sekolah tujuan menautkan akun global |
 | `POST, GET /api/v1/expertise-programs` | Program keahlian per sekolah; create hanya SMK |
 | `POST, GET /api/v1/classes` | Contoh kelas dengan aturan grade dan program |
 
 Membership admin tidak memberi hak platform admin. User create hanya menerima
 teacher/student; penambahan admin sekolah dilakukan lewat endpoint membership.
-Invite/consent, perubahan role, penghapusan membership, dan UI belum dibangun.
+Penautan user global memerlukan platform admin sekaligus membership admin sekolah
+tujuan. Ini pembatasan sementara untuk melindungi profil antarsekolah sampai alur
+invite/consent tersedia. Perubahan role, penghapusan membership, dan UI belum dibangun.
 List user dibatasi membership sekolah; akun global dengan email sama tidak dibuat
 ulang. Untuk user yang sudah ada, gunakan membership, bukan menimpa akun/password.
 

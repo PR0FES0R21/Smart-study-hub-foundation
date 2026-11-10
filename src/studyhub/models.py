@@ -145,6 +145,7 @@ class SchoolClass(Base):
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
+        Index("ix_jobs_pending_school", "school_id", postgresql_where=text("status = 'pending'")),
         CheckConstraint("status IN ('pending', 'completed')", name="status"),
         ForeignKeyConstraint(
             ["school_id", "owner_id"], ["memberships.school_id", "memberships.user_id"]

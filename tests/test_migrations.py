@@ -115,3 +115,64 @@ def test_single_school_backfill_and_lossy_downgrade_guard():
         with admin.connect() as conn:
             conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def test_security_upgrade_revokes_only_passwordless_sessions_and_downgrade_preserves_revocation():
+    if os.getenv("STUDYHUB_RUN_INTEGRATION") != "1":
+        pytest.skip("Integration infrastructure required")
+    base = make_url(Settings().sync_migration_url)
+    name = f"studyhub_security_{uuid4().hex[:8]}_test"
+    admin = create_engine(base.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    engine = create_engine(base.set(database=name))
+    url = base.set(database=name, drivername="postgresql+asyncpg").render_as_string(
+        hide_password=False
+    )
+    env = {**os.environ, "STUDYHUB_DATABASE_URL": url, "STUDYHUB_MIGRATION_DATABASE_URL": url}
+
+    def migrate(*args):
+        subprocess.run(
+            [sys.executable, "-m", "alembic", *args], env=env, capture_output=True, check=True
+        )
+
+    session_ids = {}
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'CREATE DATABASE "{name}"'))
+        migrate("upgrade", "b84c12f073a9")
+        with engine.begin() as conn:
+            for label, password_hash in (("sso", None), ("empty", ""), ("local", "test-hash")):
+                user_id, session_id = uuid4(), uuid4()
+                session_ids[label] = session_id
+                conn.execute(
+                    text(
+                        "INSERT INTO users(id,email,full_name,password_hash,is_active) VALUES (:id,:email,:label,:hash,true)"
+                    ),
+                    {
+                        "id": user_id,
+                        "email": f"{label}@example.org",
+                        "label": label,
+                        "hash": password_hash,
+                    },
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO auth_sessions(id,user_id,expires_at) VALUES (:id,:user_id,now() + interval '1 day')"
+                    ),
+                    {"id": session_id, "user_id": user_id},
+                )
+        migrate("upgrade", "head")
+        with engine.connect() as conn:
+            state = dict(conn.execute(text("SELECT id,revoked_at FROM auth_sessions")).all())
+            assert state[session_ids["sso"]] is not None
+            assert state[session_ids["empty"]] is not None
+            assert state[session_ids["local"]] is None
+        migrate("downgrade", "b84c12f073a9")
+        with engine.connect() as conn:
+            assert (
+                dict(conn.execute(text("SELECT id,revoked_at FROM auth_sessions")).all()) == state
+            )
+    finally:
+        engine.dispose()
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()

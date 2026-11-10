@@ -255,11 +255,17 @@ class Backup:
                     directory,
                 ]
             )
-            manifests = list(Path(directory).rglob("manifest.json"))
-            if len(manifests) != 1:
-                raise OperationError("manifest_missing_or_ambiguous")
-            manifest = json.loads(manifests[0].read_text())
-            dump = manifests[0].with_name("database.dump")
+            source_state = Path(
+                os.environ.get("STUDYHUB_RESTORE_SOURCE_STATE_DIR", str(self.state.resolve()))
+            )
+            if not source_state.is_absolute() or ".." in source_state.parts:
+                raise OperationError("invalid_snapshot_state_path")
+            staging = Path(directory) / source_state.relative_to(source_state.anchor) / "staging"
+            manifest_path = staging / "manifest.json"
+            dump = staging / "database.dump"
+            if not manifest_path.is_file() or not dump.is_file():
+                raise OperationError("database_snapshot_files_missing")
+            manifest = json.loads(manifest_path.read_text())
             with dump.open("rb") as handle:
                 if hashlib.file_digest(handle, "sha256").hexdigest() != manifest["sha256"]:
                     raise OperationError("dump_checksum_mismatch")

@@ -77,7 +77,9 @@ async def test_private_event_routing_and_slow_client_isolation():
     hub.deliver(
         {"version": 1, "user_id": "alice", "school_id": "school-a", "type": "job.completed"}
     )
-    assert alice.id not in hub.connections
+    assert alice.id in hub.connections and alice.closing
+    assert alice.queue.get_nowait() is None
+    hub.disconnect(alice)
     assert bob.queue.empty()
     assert alice_other_school.queue.empty()
     hub.deliver({"version": 1, "type": "job.completed"})

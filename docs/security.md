@@ -1,7 +1,11 @@
 # Keamanan
 
+Perbaikan audit v0.3.1 beserta migrasi pencabutan sesi akun tanpa password lokal
+dijelaskan dalam [catatan rilis keamanan](SECURITY_FIXES_0_3_1.md).
+
 - Password Argon2id, proses hashing/verifikasi di thread agar event loop API tidak
-  terblokir. Login unknown-user tetap memverifikasi dummy hash. Error kredensial generik.
+  terblokir. Login unknown-user tetap memverifikasi dummy hash. Akun tanpa hash
+  password lokal selalu ditolak oleh login password. Error kredensial generik.
 - JWT HS256 hanya menerima algorithm, issuer, audience dan type yang ditetapkan;
   access token 15 menit. Setiap request memeriksa session aktif di PostgreSQL.
 - Refresh token acak, hanya digest SHA-256 disimpan. Rotasi memakai session row lock;
@@ -19,13 +23,20 @@
   di URL. Native client tanpa Origin diizinkan; Origin browser harus allowlist.
   Ticket tetap credential: reverse proxy juga harus membuang query string dari log.
 - Per-process limit tiga koneksi per user, queue 64 pesan, send timeout lima detik,
-  batas protokol 1024 bytes di command Docker, batas pesan aplikasi dan rate per socket.
+  termasuk koneksi closing sampai cleanup selesai. Event diarahkan memakai index
+  user/sekolah dan frame biner/JSON rusak ditutup dengan kode protokol yang sesuai.
+  Batas protokol 1024 bytes diterapkan di command Docker, disertai batas pesan
+  aplikasi dan rate per socket.
   Untuk batas global lintas replica, tambahkan connection lease terdistribusi.
 - CORS eksplisit tanpa cookies, TrustedHost allowlist, no-store, nosniff, request ID.
   Body HTTP dibatasi 1 MiB, termasuk stream tanpa Content-Length.
   Validation error menghilangkan nilai input agar password/token tidak terpantul.
 - Outbound HTTP mempunyai base URL HTTPS yang dikonfigurasi server, koneksi/timeout
-  dibatasi, redirect dimatikan. Tidak ada endpoint proxy URL bebas.
+  dibatasi, redirect dimatikan. JSON IdP/integrasi dibatasi 256 KiB dan deadline
+  total 5 detik; encoding terkompresi ditolak. Tidak ada endpoint proxy URL bebas.
+- Job baru dibatasi per user/sekolah dan kapasitas pending. Transaction advisory
+  lock menserialkan pemeriksaan kapasitas; retry key yang sudah ada tidak membuat
+  job tambahan meskipun rate quota telah habis.
 
 ## Sebelum produksi
 

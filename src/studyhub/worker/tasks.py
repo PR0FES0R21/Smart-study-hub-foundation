@@ -2,6 +2,7 @@ import json
 import logging
 import time
 from datetime import UTC, datetime, timedelta
+from secrets import token_hex
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -139,8 +140,9 @@ def dispatch_outbox():
                         task_id=str(row.id),
                     )
                 elif row.kind == "subjects.changed":
-                    cache.incr(
-                        f"{settings.namespace}:cache:v1:school:{row.school_id}:subjects:generation"
+                    cache.set(
+                        f"{settings.namespace}:cache:v1:school:{row.school_id}:subjects:generation",
+                        token_hex(16),
                     )
                 elif row.kind == "user.event":
                     control.publish(

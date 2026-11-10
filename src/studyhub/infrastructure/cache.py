@@ -20,7 +20,9 @@ class Cache:
 
     async def invalidate_subjects(self, school_id: UUID):
         try:
-            await self.redis.incr(f"{self.prefix}:school:{school_id}:subjects:generation")
+            await self.redis.set(
+                f"{self.prefix}:school:{school_id}:subjects:generation", token_hex(16)
+            )
         except RedisError:
             logger.warning("cache_invalidation_unavailable")
 
@@ -30,9 +32,13 @@ class Cache:
         lock = None
         owner = token_hex(16)
         try:
-            generation = (
-                await self.redis.get(f"{self.prefix}:school:{school_id}:subjects:generation") or "0"
-            )
+            generation_key = f"{self.prefix}:school:{school_id}:subjects:generation"
+            generation = await self.redis.get(generation_key)
+            if generation is None:
+                await self.redis.set(generation_key, token_hex(16), nx=True)
+                generation = await self.redis.get(generation_key)
+                if generation is None:
+                    return await compute()
             key = f"{self.prefix}:school:{school_id}:subjects:stats:{generation}"
             cached = await self.redis.get(key)
             if cached is not None:

@@ -33,7 +33,7 @@ async def login(db: AsyncSession, settings: Settings, email: str, password: str)
     valid = await asyncio.to_thread(
         verify_password, user.password_hash if user and user.password_hash else DUMMY_HASH, password
     )
-    if not user or not valid or not user.is_active:
+    if not user or not user.password_hash or not valid or not user.is_active:
         logger.warning("security_audit", extra={"action": "login", "outcome": "denied"})
         raise AuthenticationError("Invalid email or password")
     return await create_session(db, settings, user)

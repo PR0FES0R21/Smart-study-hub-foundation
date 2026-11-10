@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studyhub.core.config import Settings
 from studyhub.core.errors import AuthenticationError
 from studyhub.core.security import opaque_token, token_hash
+from studyhub.infrastructure.http_json import fetch_json
 from studyhub.models import ExternalIdentity, User
 from studyhub.services.auth import create_session
 
@@ -35,11 +36,11 @@ class OIDC:
     async def discovery(self):
         if not self.settings.oidc_issuer:
             raise AuthenticationError("SSO is not configured")
-        response = await self.http.get(
-            self.settings.oidc_issuer.rstrip("/") + "/.well-known/openid-configuration"
+        metadata = await fetch_json(
+            self.http,
+            "GET",
+            self.settings.oidc_issuer.rstrip("/") + "/.well-known/openid-configuration",
         )
-        response.raise_for_status()
-        metadata = response.json()
         if metadata["issuer"] != self.settings.oidc_issuer or "S256" not in metadata.get(
             "code_challenge_methods_supported", []
         ):
@@ -101,17 +102,17 @@ class OIDC:
             )
         else:
             form["client_id"] = self.settings.oidc_client_id
-        response = await self.http.post(metadata["token_endpoint"], data=form, auth=auth)
-        response.raise_for_status()
-        token = response.json()["id_token"]
+        payload = await fetch_json(
+            self.http, "POST", metadata["token_endpoint"], data=form, auth=auth
+        )
+        token = payload["id_token"]
         header = jwt.get_unverified_header(token)
         if header.get("alg") != "RS256" or not isinstance(header.get("kid"), str):
             raise AuthenticationError("Unsupported SSO signing key")
-        response = await self.http.get(metadata["jwks_uri"])
-        response.raise_for_status()
+        jwks = await fetch_json(self.http, "GET", metadata["jwks_uri"])
         keys = [
             key
-            for key in response.json()["keys"]
+            for key in jwks["keys"]
             if key.get("kid") == header["kid"]
             and key.get("kty") == "RSA"
             and key.get("use", "sig") == "sig"
