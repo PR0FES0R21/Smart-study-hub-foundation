@@ -1,17 +1,39 @@
 import json
 import logging
+import time
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import OperationalError
 
 from studyhub.core.config import get_settings
-from studyhub.models import Job, Outbox, School, Subject
+from studyhub.core.context import actor_id_context, request_id_context, school_id_context
+from studyhub.models import AuthSession, Job, Outbox, School, Subject
 from studyhub.worker.celery_app import celery_app
 from studyhub.worker.runtime import get_resources
 
 logger = logging.getLogger(__name__)
+
+
+@celery_app.task(name="studyhub.cleanup_operations")
+def cleanup_operations():
+    """Bounded cleanup; pending outbox events and job idempotency records are never deleted."""
+    _, sessions, _, _ = get_resources()
+    with sessions.begin() as db:
+        expired = (
+            select(AuthSession.id)
+            .where(AuthSession.expires_at < datetime.now(UTC) - timedelta(days=30))
+            .limit(500)
+        )
+        delivered = (
+            select(Outbox.id)
+            .where(Outbox.delivered_at < datetime.now(UTC) - timedelta(days=14))
+            .limit(500)
+        )
+        db.execute(delete(AuthSession).where(AuthSession.id.in_(expired)))
+        db.execute(delete(Outbox).where(Outbox.id.in_(delivered)))
+    logger.info("operations_cleanup_completed")
 
 
 @celery_app.task(name="studyhub.reconcile_jobs")
@@ -71,6 +93,8 @@ def subject_report(job_id: str, school_id: str):
         )
         if not job or job.status == "completed":
             return  # At-least-once delivery; repeated execution has no extra side effects.
+        actor_id_context.set(str(job.owner_id))
+        school_id_context.set(str(school_id))
         job.result = {
             "subject_count": db.scalar(
                 select(func.count()).select_from(Subject).where(Subject.school_id == school_id)
@@ -85,6 +109,7 @@ def subject_report(job_id: str, school_id: str):
                 payload={
                     "user_id": str(job.owner_id),
                     "type": "job.completed",
+                    "request_id": request_id_context.get(),
                     "data": {"job_id": str(job.id)},
                 },
             )
@@ -110,6 +135,7 @@ def dispatch_outbox():
                     celery_app.send_task(
                         "studyhub.subject_report",
                         args=[row.payload["job_id"], str(row.school_id)],
+                        headers={"request_id": row.payload.get("request_id")},
                         task_id=str(row.id),
                     )
                 elif row.kind == "subjects.changed":
@@ -146,4 +172,5 @@ def dispatch_outbox():
                     },
                 )
             db.flush()
+    control.set(f"{settings.namespace}:ops:dispatcher:last_success", str(time.time()), ex=180)
     return sent

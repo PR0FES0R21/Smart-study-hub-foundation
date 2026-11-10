@@ -4,6 +4,15 @@ Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
 
+Versi 0.3 menambahkan backup terenkripsi/restore, jadwal systemd independen,
+logging berkorelasi dan audit dasar, metrik/alert privat, cleanup operasional,
+rotasi log, serta konfigurasi HTTPS produksi. Mulai belajar dari
+[panduan teknis berbahasa Indonesia](docs/PANDUAN_TEKNIS.md), lalu ikuti
+[backup/restore](docs/BACKUP_DAN_RESTORE.md) dan
+[operasional VPS](docs/OPERASIONAL_VPS.md).
+Timer, bucket backup dan notifikasi produksi memerlukan konfigurasi pada VPS;
+menyimpan kode ini di GitHub tidak mengaktifkan layanan tersebut otomatis.
+
 ## Mulai dengan Docker
 
 Memerlukan Python 3.12+ untuk generator konfigurasi dan Docker Compose v2.
@@ -116,6 +125,13 @@ uv run pytest tests/test_unit.py -q
 docker compose up -d postgres cache control broker
 STUDYHUB_RUN_INTEGRATION=1 uv run pytest -q
 ```
+
+Suite integrasi backup memerlukan Restic 0.19.1 pada PATH (atau `RESTIC_BIN`)
+dan akses Docker ke container PostgreSQL 16 untuk alat pg_dump/pg_restore/psql.
+Set `STUDYHUB_TEST_POSTGRES_CONTAINER` jika nama container berbeda dari
+`smart-study-foundation-postgres-1`. CI memasang Restic dengan checksum terverifikasi.
+Tes backup memakai repository terenkripsi lokal dan memulihkan data ke database
+tes baru; tidak mengakses bucket atau database produksi.
 
 Tes integrasi membuat database PostgreSQL baru dengan nama acak berakhiran `_test`,
 menjalankan migrasi, dua proses API, Celery prefork worker dan beat. Database tes

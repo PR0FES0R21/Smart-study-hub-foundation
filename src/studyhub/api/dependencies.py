@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from studyhub.core.context import actor_id_context, school_id_context
 from studyhub.core.security import decode_access
 from studyhub.models import AuthSession, Membership, School, User
 
@@ -50,6 +51,7 @@ async def bind_school(db: AsyncSession, principal: Principal, school_id: UUID) -
     if not row:
         raise HTTPException(403, "No active membership in this school")
     principal.school, principal.membership = row
+    school_id_context.set(str(school_id))
     db.info["school_id"] = str(school_id)
     await db.execute(
         text("SELECT set_config('app.school_id', :school, true)"), {"school": str(school_id)}
@@ -89,6 +91,7 @@ async def current_user(
     principal = await load_principal(db, UUID(claims["sub"]), UUID(claims["sid"]))
     if not principal:
         raise error
+    actor_id_context.set(str(principal.user.id))
     return principal
 
 

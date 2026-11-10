@@ -1,5 +1,10 @@
 # Operasional
 
+Panduan operasional v0.3 yang dapat dipraktikkan:
+[peta teknologi dan kegunaannya](PANDUAN_TEKNIS.md),
+[backup otomatis dan restore](BACKUP_DAN_RESTORE.md), serta
+[logging, monitoring dan deployment VPS](OPERASIONAL_VPS.md).
+
 ## Koneksi dan kapasitas
 
 Default development API: pool_size=5, overflow=5, pool_timeout=5 detik;
@@ -34,8 +39,9 @@ minimal satu menit, kemudian dikirim ulang melalui outbox secara idempoten.
 Jangan menganggap AOF everysec sebagai jaminan zero data loss. PostgreSQL job
 tetap menyimpan permintaan yang diterima API.
 
-Retensi: bersihkan outbox delivered dan auth session kadaluarsa secara terjadwal
-dengan batch kecil. Simpan refresh token yang sudah used sampai session berakhir
+Retensi otomatis v0.3: Celery membersihkan maksimal 500 outbox delivered >14 hari
+dan 500 auth session kedaluwarsa >30 hari setiap hari pukul 03:15 UTC.
+Simpan refresh token yang sudah used sampai session berakhir
 agar deteksi replay tidak hilang. Jangan menghapus job sebelum masa retensi
 idempotency key berakhir. Fondasi tidak menghapus data bisnis otomatis.
 

@@ -1,0 +1,51 @@
+# Requires Docker Compose >=2.24.4 (!reset). Provision runtime DB roles before startup.
+services:
+  postgres:
+    ports: !reset []
+  cache:
+    ports: !reset []
+  control:
+    ports: !reset []
+  broker:
+    ports: !reset []
+  migrate:
+    environment:
+      STUDYHUB_ENVIRONMENT: production
+  api:
+    environment:
+      STUDYHUB_ENVIRONMENT: production
+    command: ["uvicorn", "studyhub.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=172.29.0.2", "--no-access-log", "--ws-max-size", "1024", "--timeout-graceful-shutdown", "30"]
+    stop_grace_period: 40s
+    networks:
+      default: {}
+      edge: {ipv4_address: 172.29.0.3}
+  worker:
+    environment:
+      STUDYHUB_ENVIRONMENT: production
+    stop_grace_period: 180s
+  beat:
+    environment:
+      STUDYHUB_ENVIRONMENT: production
+    stop_grace_period: 30s
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      STUDYHUB_DOMAIN: ${STUDYHUB_DOMAIN:?Set the real domain in the private environment file}
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      edge: {ipv4_address: 172.29.0.2}
+    restart: unless-stopped
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+
+networks:
+  edge:
+    ipam:
+      config: [{subnet: "172.29.0.0/24"}]
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -53,6 +53,7 @@ def stack(tmp_path_factory):
         "STUDYHUB_MIGRATION_DATABASE_URL": config.database_url.get_secret_value(),
         "STUDYHUB_NAMESPACE": config.namespace,
         "STUDYHUB_ENVIRONMENT": "test",
+        "STUDYHUB_METRICS_TOKEN": "test-metrics-token-012345678901234567890123456789",
     }
     processes, handles = [], []
     log_dir = tmp_path_factory.mktemp("process-logs")

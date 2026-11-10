@@ -1,0 +1,28 @@
+groups:
+  - name: studyhub
+    rules:
+      - alert: StudyHubAPIDown
+        expr: up{job="studyhub"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "API scrape failed; check API, network and metrics credentials"}
+      - alert: StudyHubDependencyDown
+        expr: studyhub_dependency_up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "An application dependency is unavailable"}
+      - alert: StudyHubWorkerOrSchedulerStopped
+        expr: time() - studyhub_dispatcher_last_success_timestamp_seconds > 90
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Outbox pipeline heartbeat is stale; inspect worker, beat and broker"}
+      - alert: StudyHubOutboxStuck
+        expr: studyhub_outbox_oldest_age_seconds > 300
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Outbox contains undelivered events older than five minutes"}
+      - alert: StudyHubServerErrors
+        expr: sum(rate(studyhub_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(studyhub_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "More than five percent of API requests return 5xx"}

@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +8,8 @@ from studyhub.core.errors import ResourceNotFound
 from studyhub.infrastructure.cache import Cache
 from studyhub.models import Outbox, Subject
 from studyhub.schemas import SubjectWrite
+
+logger = logging.getLogger(__name__)
 
 
 async def get_subject(db: AsyncSession, school_id: UUID, subject_id: UUID) -> Subject:
@@ -45,6 +48,15 @@ async def save_subject(
         )
     )
     await db.commit()
+    logger.info(
+        "security_audit",
+        extra={
+            "action": "subject_saved",
+            "outcome": "success",
+            "resource_type": "subject",
+            "resource_id": str(subject.id),
+        },
+    )
     await cache.invalidate_subjects(school_id)  # Durable outbox retries if Redis is down here.
     return subject
 
@@ -58,4 +70,13 @@ async def delete_subject(db: AsyncSession, cache: Cache, school_id: UUID, subjec
         )
     )
     await db.commit()
+    logger.info(
+        "security_audit",
+        extra={
+            "action": "subject_deleted",
+            "outcome": "success",
+            "resource_type": "subject",
+            "resource_id": str(subject_id),
+        },
+    )
     await cache.invalidate_subjects(school_id)

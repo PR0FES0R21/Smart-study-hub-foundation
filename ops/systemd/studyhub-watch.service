@@ -1,0 +1,16 @@
+[Unit]
+Description=StudyHub independent operations watchdog
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/studyhub/watch.env
+ExecStart=/usr/bin/python3 /opt/studyhub/ops/watch.py
+StateDirectory=studyhub-ops
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/studyhub-ops
+TimeoutStartSec=45

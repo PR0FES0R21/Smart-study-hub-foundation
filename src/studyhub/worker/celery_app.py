@@ -1,8 +1,10 @@
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import setup_logging
 
 from studyhub.core.config import get_settings
 from studyhub.core.logging import configure_logging
+from studyhub.worker import observability  # noqa: F401
 
 setup_logging.connect(configure_logging)
 
@@ -27,6 +29,10 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     beat_schedule={
+        "cleanup-operations": {
+            "task": "studyhub.cleanup_operations",
+            "schedule": crontab(hour=3, minute=15),
+        },
         "dispatch-outbox": {"task": "studyhub.dispatch_outbox", "schedule": 2.0},
         "reconcile-pending-jobs": {"task": "studyhub.reconcile_jobs", "schedule": 60.0},
     },

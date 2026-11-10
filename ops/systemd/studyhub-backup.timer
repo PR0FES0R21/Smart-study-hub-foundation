@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily StudyHub encrypted backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 UTC
+Persistent=true
+RandomizedDelaySec=600
+Unit=studyhub-backup@backup.service
+
+[Install]
+WantedBy=timers.target

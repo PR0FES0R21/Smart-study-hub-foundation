@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -16,6 +17,8 @@ from studyhub.core.security import (
 from studyhub.models import AuthSession, RefreshToken, User
 from studyhub.schemas import Tokens
 
+logger = logging.getLogger(__name__)
+
 
 def issue_tokens(settings: Settings, user: User, session: AuthSession, refresh: str) -> Tokens:
     return Tokens(
@@ -31,6 +34,7 @@ async def login(db: AsyncSession, settings: Settings, email: str, password: str)
         verify_password, user.password_hash if user and user.password_hash else DUMMY_HASH, password
     )
     if not user or not valid or not user.is_active:
+        logger.warning("security_audit", extra={"action": "login", "outcome": "denied"})
         raise AuthenticationError("Invalid email or password")
     return await create_session(db, settings, user)
 
@@ -44,6 +48,10 @@ async def create_session(db: AsyncSession, settings: Settings, user: User) -> To
     refresh = opaque_token()
     db.add(RefreshToken(digest=token_hash(refresh), session_id=session.id))
     await db.commit()
+    logger.info(
+        "security_audit",
+        extra={"action": "session_created", "outcome": "success", "actor_id": str(user.id)},
+    )
     return issue_tokens(settings, user, session, refresh)
 
 
@@ -63,6 +71,14 @@ async def rotate_refresh(db: AsyncSession, settings: Settings, raw: str) -> Toke
     if token.used_at:
         session.revoked_at = now
         await db.commit()  # Must persist revocation even though the response is 401.
+        logger.warning(
+            "security_audit",
+            extra={
+                "action": "refresh_replay",
+                "outcome": "session_revoked",
+                "actor_id": str(session.user_id),
+            },
+        )
         raise error
     user = await db.get(User, session.user_id)
     if not user or not user.is_active:

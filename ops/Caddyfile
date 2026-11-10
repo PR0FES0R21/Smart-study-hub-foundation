@@ -1,0 +1,25 @@
+{$STUDYHUB_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 1MB
+	}
+	@private path /internal/* /health/ready /docs* /api/v1/openapi.json
+	respond @private 404
+	reverse_proxy api:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers delete
+				resp_headers delete
+			}
+		}
+	}
+}

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from studyhub.api.dependencies import (
     educator,
     school_context,
 )
+from studyhub.core.context import request_id_context
 from studyhub.core.security import opaque_token, password_hasher, token_hash
 from studyhub.infrastructure.redis import rate_limit
 from studyhub.models import AuthSession, Job, Membership, Outbox, Subject, User
@@ -33,6 +35,7 @@ from studyhub.schemas import (
 from studyhub.services import auth, subjects
 
 router = APIRouter(prefix="/api/v1")
+logger = logging.getLogger(__name__)
 
 
 async def auth_limit(request: Request, identity: str):
@@ -69,6 +72,7 @@ async def logout(
     session = await db.get(AuthSession, principal.session_id)
     session.revoked_at = datetime.now(UTC)
     await db.commit()
+    logger.info("security_audit", extra={"action": "logout", "outcome": "success"})
 
 
 @router.get("/users/me", response_model=UserRead, tags=["users"])
@@ -92,6 +96,15 @@ async def create_user(
     db.add(Membership(school_id=principal.school_id, user_id=user.id, role=payload.role))
     await db.commit()
     await db.refresh(user)
+    logger.info(
+        "security_audit",
+        extra={
+            "action": "user_created",
+            "outcome": "success",
+            "resource_type": "user",
+            "resource_id": str(user.id),
+        },
+    )
     return {
         **UserRead.model_validate(user).model_dump(),
         "role": payload.role,
@@ -224,7 +237,9 @@ async def report_job(
     if job_id:
         db.add(
             Outbox(
-                school_id=principal.school_id, kind="job.requested", payload={"job_id": str(job_id)}
+                school_id=principal.school_id,
+                kind="job.requested",
+                payload={"job_id": str(job_id), "request_id": request_id_context.get()},
             )
         )
     else:

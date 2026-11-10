@@ -77,7 +77,7 @@ class AuthSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -172,6 +172,11 @@ class Outbox(Base):
     __tablename__ = "outbox"
     __table_args__ = (
         Index("ix_outbox_pending", "created_at", postgresql_where=text("delivered_at IS NULL")),
+        Index(
+            "ix_outbox_delivered_at",
+            "delivered_at",
+            postgresql_where=text("delivered_at IS NOT NULL"),
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id", ondelete="CASCADE"))

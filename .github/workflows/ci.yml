@@ -40,4 +40,14 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - name: Install verified Restic for backup integration tests
+        run: |
+          curl --fail --location --retry 3 -o /tmp/restic.bz2 https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_amd64.bz2
+          echo 'f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c  /tmp/restic.bz2' | sha256sum --check
+          mkdir -p "$HOME/.local/bin"
+          bzip2 --decompress --stdout /tmp/restic.bz2 > "$HOME/.local/bin/restic"
+          chmod 755 "$HOME/.local/bin/restic"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: uv run pytest -q
+        env:
+          STUDYHUB_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}

@@ -26,9 +26,10 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=5, ge=0, le=100)
     namespace: str = Field(default="studyhub:dev", pattern=r"^[a-zA-Z0-9:_-]+$")
     allowed_origins: list[str] = ["http://localhost:3000"]
-    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver"]
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver", "api"]
     integration_base_url: str | None = None
     integration_token: SecretStr | None = None
+    metrics_token: SecretStr | None = Field(default=None, min_length=32)
     oidc_issuer: str | None = None
     oidc_client_id: str | None = None
     oidc_client_secret: SecretStr | None = None

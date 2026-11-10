@@ -1,0 +1,18 @@
+services:
+  backup:
+    profiles: ["backup"]
+    build:
+      context: .
+      dockerfile: ops/backup/Dockerfile
+    image: smart-study-backup:local
+    env_file: ${STUDYHUB_BACKUP_ENV_FILE:-.env.backup}
+    volumes:
+      - ${STUDYHUB_BACKUP_STATE_PATH:-/var/lib/studyhub-backup}:/backup/state
+      - ${STUDYHUB_BACKUP_DB_SECRET_PATH:-./.secrets/backup_database_url}:/run/secrets/backup_database_url:ro
+      - ${STUDYHUB_RESTIC_REPOSITORY_PATH:-./.secrets/restic_repository}:/run/secrets/restic_repository:ro
+      - ${STUDYHUB_RESTIC_PASSWORD_PATH:-./.secrets/restic_password}:/run/secrets/restic_password:ro
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

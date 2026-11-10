@@ -1,0 +1,10 @@
+[Unit]
+Description=StudyHub API, disk and backup checks every minute
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=60
+Unit=studyhub-watch.service
+
+[Install]
+WantedBy=timers.target

@@ -1,4 +1,44 @@
-# Hasil verifikasi v0.2 — 9 November 2026
+# Hasil verifikasi v0.3 — 10 November 2026
+
+Python 3.12, PostgreSQL 16, tiga Redis 7.4, dua proses API, worker Celery prefork,
+beat dan IdP lokal. Seluruh tes dijalankan dengan layanan nyata di lingkungan kerja.
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Ruff lint / format; `git diff --check` | Lulus |
+| Suite unit + integrasi lengkap | **34 passed** |
+| Migrasi schema termasuk index retensi, upgrade/check/downgrade/upgrade | Lulus dalam fixture integrasi |
+| Restic 0.19.1 init → pg_dump → backup terenkripsi → check/prune | Lulus pada repository lokal sementara |
+| Restore snapshot ke database PostgreSQL terpisah | Lulus; sekolah dan isi membership cocok dengan sumber |
+| Restore ke sumber, nama target tidak aman, atau target berisi data | Ditolak |
+| Lock backup untuk mencegah operasi bertumpuk | Lulus |
+| Staging plaintext dibuang setelah backup selesai | Lulus |
+| Logging: token/password/DSN/query credential dan raw exception | Disaring dalam tes; request ID login cocok dengan audit log |
+| Error tak terduga | HTTP 500 umum + request ID; tercatat dalam metrik |
+| Metrik privat, bearer salah/tidak ada, label tanpa ID sekolah | Lulus |
+| Cleanup melalui worker Celery nyata | Session lama/outbox delivered lama terhapus; session aktif, token replay, pending outbox dipertahankan |
+| Watchdog: API gagal dan backup tidak ada/basi | Terdeteksi |
+| Gabungan Compose produksi+backup+monitoring | `docker compose config --quiet` lulus |
+| Prometheus config syntax + 5 alert rules | Lulus dengan promtool v3.5.0 |
+| Alertmanager config | Lulus dengan amtool v0.28.1 |
+| Caddyfile | `caddy validate` lulus dengan Caddy v2.10.2 |
+| Ekspresi jadwal harian systemd | `systemd-analyze calendar` lulus |
+
+Binary alat verifikasi diunduh dari rilis resmi dan checksum distribusi diperiksa.
+Tes restore menggunakan repository terenkripsi lokal, bukan bucket produksi.
+Timer belum dipasang/diaktifkan, webhook/receiver eksternal belum dikonfigurasi,
+dan DNS/TLS domain nyata belum dijalankan. Validasi unit systemd penuh tidak dapat
+dijalankan karena lingkungan tidak mengizinkan penulisan runtime `/run/systemd`;
+lakukan `systemd-analyze verify` serta smoke test timer pada host tujuan.
+
+Image/seluruh stack Compose v0.3 belum dibangun ulang karena disk Docker VFS
+terbatas. Tes proses API/worker dan backup/restore nyata lulus, tetapi ini tidak
+menggantikan build image dan smoke test gabungan stack pada VPS tujuan.
+Belum ada benchmark kapasitas, pengukuran RTO, HA/PITR, audit penetrasi, atau
+verifikasi IdP/bucket/penerima alert produksi. CI juga harus diperiksa terpisah
+di GitHub; hasil suite di atas berasal dari lingkungan kerja ini.
+
+## Riwayat v0.2 — 9 November 2026
 
 Python 3.12, PostgreSQL 16 dan tiga Redis 7.4 nyata; Celery tetap dipakai.
 

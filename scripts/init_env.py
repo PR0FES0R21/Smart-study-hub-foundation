@@ -21,7 +21,7 @@ STUDYHUB_JWT_SECRET={secrets.token_hex(48)}
 STUDYHUB_NAMESPACE=studyhub:dev
 STUDYHUB_ENVIRONMENT=development
 STUDYHUB_ALLOWED_ORIGINS=["http://localhost:3000"]
-STUDYHUB_ALLOWED_HOSTS=["localhost","127.0.0.1","testserver"]
+STUDYHUB_ALLOWED_HOSTS=["localhost","127.0.0.1","testserver","api"]
 """
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 with os.fdopen(fd, "w") as handle:

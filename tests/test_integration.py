@@ -42,7 +42,7 @@ def test_auth_rotation_replay_and_logout(client):
     assert client.get("/api/v1/users/me", headers=headers).status_code == 401
 
 
-def test_subject_crud_unique_constraint_and_cache(client, admin_headers):
+def test_subject_crud_unique_constraint_and_cache(stack, client, admin_headers):
     initial = client.get("/api/v1/subjects/statistics", headers=admin_headers).json()[
         "subject_count"
     ]
@@ -65,6 +65,18 @@ def test_subject_crud_unique_constraint_and_cache(client, admin_headers):
     assert client.get(f"/api/v1/subjects/{subject_id}", headers=admin_headers).status_code == 200
     assert client.delete(f"/api/v1/subjects/{subject_id}", headers=admin_headers).status_code == 204
     assert client.get(f"/api/v1/subjects/{subject_id}", headers=admin_headers).status_code == 404
+    audit = [
+        json.loads(line)
+        for line in (stack["logs"] / "api-0.log").read_text().splitlines()
+        if line.startswith("{")
+    ]
+    assert any(
+        row.get("action") == "subject_deleted"
+        and row.get("resource_id") == subject_id
+        and row.get("school_id") == stack["schools"]["SMK"]
+        and row.get("actor_id")
+        for row in audit
+    )
 
 
 def test_authorization_validation_and_password_redaction(client, admin_headers):
@@ -123,6 +135,7 @@ async def test_real_celery_cross_process_websocket_and_idempotency(stack, client
                 event = json.loads(await websocket.recv())
                 if event["type"] == "job.completed" and event["data"]["job_id"] == job_id:
                     assert event["version"] == 1 and event["event_id"]
+                    assert event["request_id"] == job.headers["X-Request-ID"]
                     break
         status = client.get(f"/api/v1/jobs/{job_id}", headers=admin_headers)
         assert status.json()["status"] == "completed"
@@ -132,6 +145,7 @@ async def test_real_celery_cross_process_websocket_and_idempotency(stack, client
         async with connect(ws_url, proxy=None):
             pytest.fail("Ticket was replayed")
     assert ticket not in (stack["logs"] / "api-1.log").read_text()
+    assert job.headers["X-Request-ID"] in (stack["logs"] / "worker.log").read_text()
     other = login(client, "teacher")
     assert (
         client.get(

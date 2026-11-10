@@ -1,10 +1,15 @@
 name: smart-study-foundation
 
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
 x-app: &app
   build: .
   image: smart-study-foundation:local
   init: true
   restart: unless-stopped
+  logging: *logging
   environment: &app-env
     STUDYHUB_DATABASE_URL: postgresql+asyncpg://studyhub_app:${APP_DATABASE_PASSWORD:?Run init_env.py}@postgres:5432/studyhub
     STUDYHUB_CACHE_URL: redis://:${CACHE_PASSWORD:?Run init_env.py}@cache:6379/0
@@ -14,7 +19,7 @@ x-app: &app
     STUDYHUB_ENVIRONMENT: ${STUDYHUB_ENVIRONMENT:-development}
     STUDYHUB_NAMESPACE: ${STUDYHUB_NAMESPACE:-studyhub:dev}
     STUDYHUB_ALLOWED_ORIGINS: ${STUDYHUB_ALLOWED_ORIGINS:-["http://localhost:3000"]}
-    STUDYHUB_ALLOWED_HOSTS: ${STUDYHUB_ALLOWED_HOSTS:-["localhost","127.0.0.1","testserver"]}
+    STUDYHUB_ALLOWED_HOSTS: ${STUDYHUB_ALLOWED_HOSTS:-["localhost","127.0.0.1","testserver","api"]}
     STUDYHUB_OIDC_ISSUER: ${STUDYHUB_OIDC_ISSUER:-}
     STUDYHUB_OIDC_CLIENT_ID: ${STUDYHUB_OIDC_CLIENT_ID:-}
     STUDYHUB_OIDC_CLIENT_SECRET: ${STUDYHUB_OIDC_CLIENT_SECRET:-}
@@ -25,6 +30,7 @@ x-app: &app
 
 services:
   postgres:
+    logging: *logging
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: studyhub
@@ -40,6 +46,7 @@ services:
     restart: unless-stopped
 
   cache:
+    logging: *logging
     image: redis:7.4-alpine
     environment:
       REDIS_PASSWORD: ${CACHE_PASSWORD:?Run init_env.py}
@@ -53,6 +60,7 @@ services:
     restart: unless-stopped
 
   control:
+    logging: *logging
     image: redis:7.4-alpine
     environment:
       REDIS_PASSWORD: ${CONTROL_PASSWORD:?Run init_env.py}
@@ -67,6 +75,7 @@ services:
     restart: unless-stopped
 
   broker:
+    logging: *logging
     image: redis:7.4-alpine
     environment:
       REDIS_PASSWORD: ${BROKER_PASSWORD:?Run init_env.py}

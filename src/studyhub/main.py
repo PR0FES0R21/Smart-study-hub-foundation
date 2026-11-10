@@ -1,14 +1,15 @@
 import asyncio
+import hmac
 import logging
 import time
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy import text
@@ -18,12 +19,14 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from studyhub.api import routes, schools, sso, websocket
 from studyhub.api.middleware import BodyLimitMiddleware
 from studyhub.core.config import Settings, get_settings
+from studyhub.core.context import actor_id_context, request_id_context, school_id_context
 from studyhub.core.errors import AuthenticationError, ResourceNotFound
 from studyhub.core.logging import configure_logging
 from studyhub.infrastructure.cache import Cache
 from studyhub.infrastructure.database import create_database
 from studyhub.infrastructure.events import EventHub
 from studyhub.infrastructure.integrations import IntegrationClient
+from studyhub.infrastructure.metrics import Metrics
 from studyhub.infrastructure.redis import create_redis
 from studyhub.services.oidc import OIDC
 
@@ -99,12 +102,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Smart Study Hub Foundation",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
         docs_url=None if settings.environment == "production" else "/docs",
         redoc_url=None,
         openapi_url="/api/v1/openapi.json",
     )
+    app.state.metrics = Metrics()
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(
@@ -119,8 +123,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.middleware("http")
     async def request_metadata(request: Request, call_next):
         request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+        context = request_id_context.set(request_id)
         start = time.monotonic()
-        response = await call_next(request)
+        status = 500
+        try:
+            response = await call_next(request)
+            status = response.status_code
+        except Exception as exc:
+            logger.error("request_failed", extra={"error_type": type(exc).__name__})
+            raise
+        finally:
+            route = getattr(request.scope.get("route"), "path", "__unmatched__")
+            if route != "/internal/metrics":
+                app.state.metrics.observe(request.method, route, status, time.monotonic() - start)
+            logger.info(
+                "http_request",
+                extra={
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": route,
+                    "status": status,
+                    "duration_ms": round((time.monotonic() - start) * 1000, 2),
+                },
+            )
+            request_id_context.reset(context)
+            actor_id_context.set(None)
+            school_id_context.set(None)
         response.headers.update(
             {
                 "X-Request-ID": request_id,
@@ -129,18 +158,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "Cache-Control": "no-store",
             }
         )
-        # Never log query strings, credentials, request bodies, or raw SQL exceptions.
-        logger.info(
-            "http_request",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status": response.status_code,
-                "duration_ms": round((time.monotonic() - start) * 1000, 2),
+        return response
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception):
+        request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "request_id": request_id},
+            headers={
+                "X-Request-ID": request_id,
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
             },
         )
-        return response
+
+    @app.get("/internal/metrics", include_in_schema=False)
+    async def metrics(request: Request):
+        token = settings.metrics_token
+        if not token:
+            raise HTTPException(404, "Not found")
+        expected = "Bearer " + token.get_secret_value()
+        if not hmac.compare_digest(
+            request.headers.get("authorization", "").encode(), expected.encode()
+        ):
+            raise HTTPException(401, "Invalid metrics credential")
+        try:
+            content = await asyncio.wait_for(app.state.metrics.render(app.state), timeout=8)
+        except TimeoutError as exc:
+            raise HTTPException(503, "Metrics collection timed out") from exc
+        return Response(content=content, media_type="text/plain; version=0.0.4; charset=utf-8")
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, exc: RequestValidationError):
