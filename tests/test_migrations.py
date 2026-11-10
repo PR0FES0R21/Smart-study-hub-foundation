@@ -176,3 +176,80 @@ def test_security_upgrade_revokes_only_passwordless_sessions_and_downgrade_prese
         with admin.connect() as conn:
             conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def test_academic_upgrade_preserves_classes_and_refuses_lossy_downgrade():
+    if os.getenv("STUDYHUB_RUN_INTEGRATION") != "1":
+        pytest.skip("Integration infrastructure required")
+    base = make_url(Settings().sync_migration_url)
+    name = f"studyhub_academic_{uuid4().hex[:8]}_test"
+    admin = create_engine(base.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    engine = create_engine(base.set(database=name))
+    url = base.set(database=name, drivername="postgresql+asyncpg").render_as_string(
+        hide_password=False
+    )
+    env = {**os.environ, "STUDYHUB_DATABASE_URL": url, "STUDYHUB_MIGRATION_DATABASE_URL": url}
+
+    def migrate(*args, check=True):
+        return subprocess.run(
+            [sys.executable, "-m", "alembic", *args], env=env, capture_output=True, check=check
+        )
+
+    school, classroom, period = uuid4(), uuid4(), uuid4()
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'CREATE DATABASE "{name}"'))
+        migrate("upgrade", "e21aa6c09f52")
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO schools(id,code,name,level) VALUES (:id,'OLD_CLASS','Legacy school','SMK')"
+                ),
+                {"id": school},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO school_classes(id,school_id,school_level,name,grade_level) VALUES (:id,:school,'SMK','12 TKJ',12)"
+                ),
+                {"id": classroom, "school": school},
+            )
+        migrate("upgrade", "head")
+        migrate("check")
+        with engine.begin() as conn:
+            assert (
+                conn.scalar(text("SELECT name FROM school_classes WHERE id=:id"), {"id": classroom})
+                == "12 TKJ"
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO academic_periods(id,school_id,year_start,semester,starts_on,ends_on) VALUES (:id,:school,2026,1,'2026-07-01','2026-12-31')"
+                ),
+                {"id": period, "school": school},
+            )
+        failed = migrate("downgrade", "e21aa6c09f52", check=False)
+        assert failed.returncode != 0 and b"Refusing lossy academic downgrade" in failed.stderr
+        with engine.begin() as conn:
+            assert conn.scalar(text("SELECT version_num FROM alembic_version")) == "f47b2a91cd30"
+            assert conn.scalar(text("SELECT count(*) FROM academic_periods")) == 1
+            assert (
+                conn.scalar(
+                    text(
+                        "SELECT relforcerowsecurity FROM pg_class WHERE relname='academic_periods'"
+                    )
+                )
+                is True
+            )
+            conn.execute(text("DELETE FROM academic_periods WHERE id=:id"), {"id": period})
+        migrate("downgrade", "e21aa6c09f52")
+        with engine.connect() as conn:
+            assert (
+                conn.scalar(text("SELECT name FROM school_classes WHERE id=:id"), {"id": classroom})
+                == "12 TKJ"
+            )
+        migrate("upgrade", "head")
+        migrate("check")
+    finally:
+        engine.dispose()
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()

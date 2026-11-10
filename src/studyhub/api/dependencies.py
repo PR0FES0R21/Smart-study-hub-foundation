@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -9,6 +8,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from studyhub.core.context import actor_id_context, school_id_context
+from studyhub.core.principal import Principal
 from studyhub.core.security import decode_access
 from studyhub.models import AuthSession, Membership, School, User
 
@@ -19,20 +19,6 @@ async def database(request: Request):
     async with request.app.state.sessions() as session:
         # Services own commit boundaries. Uncommitted work always rolls back on close.
         yield session
-
-
-@dataclass
-class Principal:
-    user: User
-    session_id: UUID
-    school: School | None = None
-    membership: Membership | None = None
-
-    @property
-    def school_id(self) -> UUID:
-        if self.school is None:
-            raise RuntimeError("School context is required")
-        return self.school.id
 
 
 async def bind_school(db: AsyncSession, principal: Principal, school_id: UUID) -> Principal:

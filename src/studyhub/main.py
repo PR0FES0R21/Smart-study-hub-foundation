@@ -16,8 +16,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from studyhub.academics.api import router as academic_router
 from studyhub.api import routes, schools, sso, websocket
 from studyhub.api.middleware import BodyLimitMiddleware
+from studyhub.assessments.api import router as assessment_router
 from studyhub.core.config import Settings, get_settings
 from studyhub.core.context import actor_id_context, request_id_context, school_id_context
 from studyhub.core.errors import AuthenticationError, ResourceNotFound
@@ -102,7 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Smart Study Hub Foundation",
-        version="0.3.1",
+        version="0.4.0",
         lifespan=lifespan,
         docs_url=None if settings.environment == "production" else "/docs",
         redoc_url=None,
@@ -262,6 +264,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(routes.router)
     app.include_router(schools.router)
+    app.include_router(academic_router)
+    app.include_router(assessment_router)
     app.include_router(sso.router)
     app.include_router(websocket.router)
     return app

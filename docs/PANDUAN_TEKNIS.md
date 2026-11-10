@@ -137,3 +137,19 @@ replica, cluster, distributed tracing, dan pemisahan layanan berdasarkan kebutuh
 Lanjutkan ke [backup dan restore](BACKUP_DAN_RESTORE.md),
 [operasional VPS](OPERASIONAL_VPS.md), [perbaikan audit dan upgrade v0.3.1](SECURITY_FIXES_0_3_1.md),
 dan [hasil verifikasi](verification.md).
+
+
+## Kolaborasi akademik (v0.4.0)
+
+Domain `academics` mengatur semester, penugasan mengajar dan penunjukan koordinator
+oleh admin sekolah. Domain `assessments` mengatur soal, review, modul bersama,
+versi terbit yang tidak dapat diubah dan konfigurasi ujian per kelas. PostgreSQL
+menjaga relasi sekolah, keunikan, transaksi, RLS dan riwayat audit. Role koordinator
+dibatasi pada mapel/tingkat/periode, sehingga satu guru bisa memiliki tanggung jawab
+yang berbeda pada kelompok lain.
+
+Baca [panduan kolaborasi ujian](KOLABORASI_UJIAN.md) untuk alur lewat endpoint,
+contoh payload, alasan penggunaan row lock dan snapshot JSONB, serta batas fitur
+yang sudah tersedia. Celery tetap untuk pekerjaan latar belakang; operasi review
+dan publikasi ini diselesaikan dalam transaksi PostgreSQL agar hasilnya langsung
+konsisten. Data otorisasi dan kunci soal tidak disimpan pada cache bersama.

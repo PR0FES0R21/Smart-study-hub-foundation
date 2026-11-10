@@ -92,7 +92,10 @@ class RefreshToken(Base):
 
 class Subject(Base):
     __tablename__ = "subjects"
-    __table_args__ = (UniqueConstraint("school_id", "code"),)
+    __table_args__ = (
+        UniqueConstraint("school_id", "code"),
+        UniqueConstraint("id", "school_id", name="uq_subjects_id_school"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id", ondelete="CASCADE"))
     code: Mapped[str] = mapped_column(String(24))
@@ -122,6 +125,7 @@ class SchoolClass(Base):
     __tablename__ = "school_classes"
     __table_args__ = (
         UniqueConstraint("school_id", "name"),
+        UniqueConstraint("id", "school_id", name="uq_school_classes_id_school"),
         ForeignKeyConstraint(
             ["school_id", "school_level"], ["schools.id", "schools.level"], ondelete="CASCADE"
         ),

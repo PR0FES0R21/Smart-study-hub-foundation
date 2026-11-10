@@ -4,6 +4,10 @@ Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
 
+Rilis **0.4.0** menambahkan periode akademik, penugasan mengajar, koordinator
+mapel per tingkat kelas, pengajuan/review soal, modul ujian berversi dan konfigurasi
+ujian kelas dari paket bersama. Baca [panduan kolaborasi dan contoh API](docs/KOLABORASI_UJIAN.md).
+
 Rilis **0.3.1** menerapkan perbaikan audit autentikasi, enrollment, cache,
 WebSocket, admission job, respons upstream, dan backup/watchdog. Baca
 [catatan perbaikan dan urutan upgrade](docs/SECURITY_FIXES_0_3_1.md): migrasi
@@ -103,7 +107,9 @@ SMA dan SMK memiliki aturan kelas/program yang divalidasi sampai database.
 ```text
 src/studyhub/
   api/                 # route, validasi input/output, auth dependency, WebSocket
-  core/                # konfigurasi dan primitive keamanan
+  academics/           # periode, tugas mengajar, koordinasi dan audit
+  assessments/         # soal, review, modul berversi dan konfigurasi ujian kelas
+  core/                # konfigurasi, principal dan primitive keamanan
   infrastructure/      # database factory, Redis, cache, Pub/Sub, outbound HTTP
   services/            # use case bisnis dan batas transaksi
   worker/              # Celery, resource sinkron per child, dispatcher outbox

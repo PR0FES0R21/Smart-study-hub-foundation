@@ -118,3 +118,20 @@ nyata lulus; lakukan `docker compose up --build` pada host tujuan dengan ruang c
 
 Belum benchmark beban besar, HA/failover cluster, audit penetrasi, atau migrasi
 MongoDB lama. Migrasi yang diuji adalah schema foundation PostgreSQL v0.1 → v0.2.
+
+
+## v0.4.0 — academic collaboration (2026-11-10)
+
+Local full suite: **67 passed**, using real PostgreSQL/Redis, two API processes,
+Celery worker/beat, the test OIDC provider, and Restic backup/restore. Ruff lint
+and formatting pass. `uv lock --check --offline` passes with no dependency upgrades.
+Alembic tests cover fresh upgrade, empty downgrade/re-upgrade, metadata drift,
+legacy class preservation, and refusal of a populated academic downgrade.
+
+The new workflow tests exercise admin-only coordination, teaching across programs,
+question review, immutable snapshots, class scheduling, cross-school/composite FK
+isolation, concurrent edits/publishes, and coordinator replacement. Validation
+rejects inconsistent answer keys, duplicate module items, missing revisions and
+timezone-free exam dates. This is functional/concurrency validation, not a load
+benchmark or evidence that a production deployment is active. GitHub Actions
+status must be checked independently of these local results.
