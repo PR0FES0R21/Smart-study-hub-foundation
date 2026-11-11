@@ -20,16 +20,21 @@ Endpoint tambahan:
 | `GET /api/v1/schools` | Sekolah aktif yang diikuti pengguna, beserta role |
 | `GET /api/v1/schools/current` | Konteks, role dan capabilities jenjang |
 | `POST /api/v1/schools/current/memberships` | Platform admin yang juga admin sekolah tujuan menautkan akun global |
-| `POST, GET /api/v1/expertise-programs` | Program keahlian per sekolah; create hanya SMK |
-| `POST, GET /api/v1/classes` | Contoh kelas dengan aturan grade dan program |
+| `/api/v1/expertise-programs` | CRUD program keahlian per sekolah; create hanya SMK |
+| `/api/v1/classes` | CRUD kelas dengan aturan grade dan program |
+| `/api/v1/school-admins` | Registrasi akun admin sekolah baru dan pengelolaan biodata/akses lokal |
 
-Membership admin tidak memberi hak platform admin. User create hanya menerima
-teacher/student; penambahan admin sekolah dilakukan lewat endpoint membership.
+Membership admin tidak memberi hak platform admin. `/users` tetap hanya menerima
+teacher/student. Sejak v0.6, `/school-admins` dapat membuat akun admin sekolah
+baru tanpa memberikan hak platform; endpoint membership menautkan akun yang sudah ada.
 Penautan user global memerlukan platform admin sekaligus membership admin sekolah
 tujuan. Ini pembatasan sementara untuk melindungi profil antarsekolah sampai alur
-invite/consent tersedia. Perubahan role, penghapusan membership, dan UI belum dibangun.
-List user dibatasi membership sekolah; akun global dengan email sama tidak dibuat
-ulang. Untuk user yang sudah ada, gunakan membership, bukan menimpa akun/password.
+invite/consent tersedia. Perubahan role, penghapusan fisik membership, dan UI belum dibangun.
+CRUD direktori v0.6 menonaktifkan/memulihkan akses lokal sambil mempertahankan riwayat.
+List user dibatasi membership sekolah; email global yang sudah digunakan menghasilkan
+konflik pada registrasi, bukan penautan atau overwrite password otomatis.
+Untuk user yang sudah ada, gunakan alur membership berizin platform admin.
+Detail endpoint dan field ada di [CRUD dan struktur data](CRUD_DAN_STRUKTUR_DATA.md).
 
 ## Aturan jenjang
 
@@ -39,9 +44,10 @@ ulang. Untuk user yang sudah ada, gunakan membership, bukan menimpa akun/passwor
 | SMA | 10, 11, 12 | Tidak tersedia; ditolak bila diisi |
 | SMK | 10, 11, 12, 13 | Tersedia; kelas 13 mengakomodasi program empat tahun |
 
-Program pada kelas SMK masih opsional dalam fondasi ini. Aturan kurikulum spesifik,
-konsentrasi keahlian, tahun ajaran, dan syarat kelas tertentu dapat ditambahkan
-sebagai domain tersendiri. Jenjang sekolah tidak disediakan sebagai field update
+Program pada kelas SMK masih opsional dalam fondasi ini. Tahun ajaran, semester,
+enrollment dan wali kelas per semester sudah tersedia. Aturan kurikulum spesifik,
+konsentrasi keahlian dan syarat kelas tertentu dapat ditambahkan sesuai kebutuhan.
+Jenjang sekolah tidak disediakan sebagai field update
 agar perubahan tidak merusak relasi kelas/program yang sudah terbentuk.
 
 Aturan divalidasi dua lapis: service HTTP dan constraint PostgreSQL. Composite FK

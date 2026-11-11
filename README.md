@@ -4,6 +4,9 @@ Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
 
+Mulai dari [Dokumen Utama](docs/README.md) untuk instruksi service, teknologi,
+fitur, implementasi, keamanan, backup dan rencana pengembangan beserta statusnya.
+
 Rilis **0.6.0** melengkapi CRUD siswa, guru, admin sekolah, kelas, program keahlian,
 tahun ajaran dan semester. Biodata dipisah dari identitas login global; penghapusan
 akses mempertahankan riwayat dan wali kelas disimpan per semester. Baca

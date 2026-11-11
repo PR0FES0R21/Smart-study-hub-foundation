@@ -2,6 +2,8 @@
 
 Dokumen ini menjelaskan apa yang dipakai, alasan pemilihannya, dan batasnya.
 Fondasi ini mendukung beberapa sekolah SMP, SMA, dan SMK dalam satu backend.
+Untuk acuan lintas domain, instruksi service dan rencana keamanan, mulai dari
+[Dokumen Utama](README.md).
 Fitur contoh membuktikan login, CRUD, isolasi sekolah, pekerjaan background, SSO,
 dan notifikasi. Ini belum aplikasi sekolah lengkap atau hasil audit keamanan independen.
 
@@ -20,10 +22,10 @@ Rentang kompatibilitasnya berada di [`pyproject.toml`](../pyproject.toml).
 | SQLAlchemy + psycopg | SQLAlchemy 2.0, psycopg 3 | Akses sinkron dari child process Celery. Pool dibuat sesudah fork, sehingga koneksi tidak diwariskan lintas proses. |
 | Alembic | 1.x | Riwayat perubahan schema yang dapat ditinjau. Migrasi release dijalankan satu kali sebelum aplikasi baru. |
 | Redis cache | Redis 7.4, `allkeys-lru`, 128 MB awal | Cache-aside statistik mata pelajaran, TTL 30 detik. Cache boleh terbuang; PostgreSQL tetap menyimpan data asli. |
-| Redis control | Redis 7.4, `noeviction`, AOF | Rate limit login, ticket WebSocket, state OIDC, validasi session singkat, heartbeat, dan Pub/Sub. Kegagalannya dapat menolak auth/WS secara aman. |
+| Redis control | Redis 7.4, `noeviction`, AOF | Rate limit login, ticket WebSocket, state OIDC, heartbeat, dan Pub/Sub. Status session/otorisasi tetap diperiksa di PostgreSQL. Kegagalannya dapat menolak auth/WS secara aman. |
 | Redis broker | Redis 7.4, `noeviction`, AOF everysec | Antrean pesan Celery. Dipisah agar pembersihan cache tidak membuang antrean atau kontrol keamanan. |
 | redis-py | >=5.2,<7 | Client async untuk API dan sinkron untuk worker, dengan batas pool dan timeout. Pub/Sub memakai koneksi tersendiri. |
-| Celery | >=5.5,<6, worker prefork | Menjalankan pekerjaan di luar request: contoh laporan mata pelajaran, dispatch outbox, rekonsiliasi job, dan cleanup. Cocok untuk task sinkron/CPU; task tidak memblokir event loop API karena berjalan di proses lain. |
+| Celery | >=5.5,<6, worker prefork | Menjalankan pekerjaan di luar request: contoh laporan mata pelajaran, dispatch outbox, rekonsiliasi job, expiry attempt ujian, dan cleanup. Cocok untuk task sinkron/CPU; task tidak memblokir event loop API karena berjalan di proses lain. |
 | Celery beat | Satu proses per environment, UTC | Menjadwalkan dispatcher setiap 2 detik, rekonsiliasi job setiap 60 detik, penutupan attempt ujian kedaluwarsa setiap 30 detik, cleanup harian 03:15 UTC. Ini berbeda dari scheduler backup server. |
 | Transactional outbox | Record event di transaksi PostgreSQL yang sama | Perubahan data dan niat mengirim job/event tersimpan bersama. Dispatcher mengirim ulang jika layanan tujuan gagal. |
 | Native WebSocket | ASGI, ticket sekali pakai 30 detik | Mengirim `job.completed` kepada user/sekolah yang benar. Redis Pub/Sub menghubungkan worker dengan beberapa proses API. |
