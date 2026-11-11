@@ -89,9 +89,16 @@ async def add_membership(
 ):
     if not principal.user.is_platform_admin:
         raise HTTPException(403, "Global account linking requires a platform administrator")
-    if not await db.get(User, payload.user_id):
+    user = await db.get(User, payload.user_id)
+    if not user:
         raise HTTPException(404, "User not found")
     db.add(Membership(school_id=principal.school_id, **payload.model_dump()))
+    await db.flush()
+    from studyhub.academics.people_models import MemberProfile, TeacherProfile
+
+    db.add(MemberProfile(school_id=principal.school_id, user_id=user.id, full_name=user.full_name))
+    if payload.role == "teacher":
+        db.add(TeacherProfile(school_id=principal.school_id, user_id=user.id))
     await db.commit()
     return {"school_id": principal.school_id, **payload.model_dump()}
 
@@ -124,6 +131,10 @@ async def create_program(
         raise HTTPException(422, "Expertise programs are supported only for SMK")
     program = ExpertiseProgram(school_id=principal.school_id, **payload.model_dump())
     db.add(program)
+    await db.flush()
+    from studyhub.academics.service import audit
+
+    audit(db, principal, "program.created", program.id)
     await db.commit()
     return program
 
@@ -167,5 +178,9 @@ async def create_class(
         school_id=principal.school_id, school_level=level, **payload.model_dump()
     )
     db.add(classroom)
+    await db.flush()
+    from studyhub.academics.service import audit
+
+    audit(db, principal, "class.created", classroom.id)
     await db.commit()
     return classroom

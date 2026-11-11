@@ -5,38 +5,36 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from studyhub.academics import enrollment_service as service
+from studyhub.academics import people_service
 from studyhub.academics import student_schemas as schemas
+from studyhub.academics.people_schemas import StudentDetail
 from studyhub.academics.student_models import StudentEnrollment, StudentProfile
 from studyhub.api.dependencies import Principal, administrator, database, student
 
 router = APIRouter(prefix="/api/v1", tags=["student enrollment"])
 
 
-@router.post("/students", response_model=schemas.StudentRead, status_code=201)
+@router.post("/students", response_model=StudentDetail, status_code=201)
 async def create_student(
     data: schemas.StudentCreate,
     p: Principal = Depends(administrator),
     db: AsyncSession = Depends(database),
 ):
-    return await service.create_student(db, p, data)
+    profile = await service.create_student(db, p, data)
+    return await people_service.directory(db, p.school_id, "student", entity_id=profile.id)
 
 
-@router.get("/students", response_model=list[schemas.StudentRead])
+@router.get("/students", response_model=list[StudentDetail])
 async def list_students(
+    active: bool | None = None,
     p: Principal = Depends(administrator),
     db: AsyncSession = Depends(database),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, le=10000),
 ):
-    return (
-        await db.scalars(
-            select(StudentProfile)
-            .where(StudentProfile.school_id == p.school_id)
-            .order_by(StudentProfile.id)
-            .limit(limit)
-            .offset(offset)
-        )
-    ).all()
+    return await people_service.directory(
+        db, p.school_id, "student", active=active, limit=limit, offset=offset
+    )
 
 
 @router.get("/student/profile", response_model=schemas.StudentRead)

@@ -9,6 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from studyhub.academics.people_models import MemberProfile, TeacherProfile
 from studyhub.api.dependencies import (
     Principal,
     administrator,
@@ -94,6 +95,12 @@ async def create_user(
     db.add(user)
     await db.flush()
     db.add(Membership(school_id=principal.school_id, user_id=user.id, role=payload.role))
+    await db.flush()
+    db.add(
+        MemberProfile(school_id=principal.school_id, user_id=user.id, full_name=payload.full_name)
+    )
+    if payload.role == "teacher":
+        db.add(TeacherProfile(school_id=principal.school_id, user_id=user.id))
     await db.commit()
     await db.refresh(user)
     logger.info(
@@ -121,8 +128,13 @@ async def users_list(
 ):
     rows = (
         await db.execute(
-            select(User, Membership)
-            .join(Membership)
+            select(User, Membership, MemberProfile.full_name)
+            .join(Membership, Membership.user_id == User.id)
+            .outerjoin(
+                MemberProfile,
+                (MemberProfile.user_id == User.id)
+                & (MemberProfile.school_id == Membership.school_id),
+            )
             .where(Membership.school_id == principal.school_id)
             .order_by(User.created_at, User.id)
             .limit(limit)
@@ -132,10 +144,11 @@ async def users_list(
     return [
         {
             **UserRead.model_validate(user).model_dump(),
+            "full_name": local_name if local_name is not None else user.full_name,
             "role": membership.role,
             "membership_active": membership.is_active,
         }
-        for user, membership in rows
+        for user, membership, local_name in rows
     ]
 
 

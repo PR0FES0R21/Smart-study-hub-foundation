@@ -1,4 +1,4 @@
-# Panduan teknis Smart Study Hub Foundation v0.3.1
+# Panduan teknis Smart Study Hub Foundation v0.6.0
 
 Dokumen ini menjelaskan apa yang dipakai, alasan pemilihannya, dan batasnya.
 Fondasi ini mendukung beberapa sekolah SMP, SMA, dan SMK dalam satu backend.
@@ -15,7 +15,7 @@ Rentang kompatibilitasnya berada di [`pyproject.toml`](../pyproject.toml).
 | Python | 3.12+ | Bahasa API, worker, dan alat operasional. |
 | FastAPI + Uvicorn | FastAPI <1; Uvicorn <1, ASGI | HTTP API, validasi input, OpenAPI, dan WebSocket native. I/O API berjalan async. |
 | Pydantic Settings | 2.x, konfigurasi dari environment | Validasi konfigurasi ketika startup; secret tidak ditanam dalam kode. |
-| PostgreSQL | 16 | Sumber kebenaran: user, sekolah, membership, mata pelajaran, session, job, outbox. Transaksi dan constraint menjaga konsistensi. |
+| PostgreSQL | 16 | Sumber kebenaran: identitas, biodata per sekolah, kalender/kelas, enrollment, soal/ujian/nilai, session, job dan outbox. Transaksi dan constraint menjaga konsistensi. |
 | SQLAlchemy + asyncpg | SQLAlchemy 2.0, asyncpg <1 | ORM async dan pool koneksi API. Satu session per pekerjaan/request; engine dipakai ulang dan ditutup saat shutdown. |
 | SQLAlchemy + psycopg | SQLAlchemy 2.0, psycopg 3 | Akses sinkron dari child process Celery. Pool dibuat sesudah fork, sehingga koneksi tidak diwariskan lintas proses. |
 | Alembic | 1.x | Riwayat perubahan schema yang dapat ditinjau. Migrasi release dijalankan satu kali sebelum aplikasi baru. |
@@ -24,7 +24,7 @@ Rentang kompatibilitasnya berada di [`pyproject.toml`](../pyproject.toml).
 | Redis broker | Redis 7.4, `noeviction`, AOF everysec | Antrean pesan Celery. Dipisah agar pembersihan cache tidak membuang antrean atau kontrol keamanan. |
 | redis-py | >=5.2,<7 | Client async untuk API dan sinkron untuk worker, dengan batas pool dan timeout. Pub/Sub memakai koneksi tersendiri. |
 | Celery | >=5.5,<6, worker prefork | Menjalankan pekerjaan di luar request: contoh laporan mata pelajaran, dispatch outbox, rekonsiliasi job, dan cleanup. Cocok untuk task sinkron/CPU; task tidak memblokir event loop API karena berjalan di proses lain. |
-| Celery beat | Satu proses per environment, UTC | Menjadwalkan dispatcher setiap 2 detik, rekonsiliasi setiap 60 detik, cleanup harian 03:15 UTC. Ini berbeda dari scheduler backup server. |
+| Celery beat | Satu proses per environment, UTC | Menjadwalkan dispatcher setiap 2 detik, rekonsiliasi job setiap 60 detik, penutupan attempt ujian kedaluwarsa setiap 30 detik, cleanup harian 03:15 UTC. Ini berbeda dari scheduler backup server. |
 | Transactional outbox | Record event di transaksi PostgreSQL yang sama | Perubahan data dan niat mengirim job/event tersimpan bersama. Dispatcher mengirim ulang jika layanan tujuan gagal. |
 | Native WebSocket | ASGI, ticket sekali pakai 30 detik | Mengirim `job.completed` kepada user/sekolah yang benar. Redis Pub/Sub menghubungkan worker dengan beberapa proses API. |
 | JWT + refresh token | Access berumur pendek, refresh dirotasi | Login lokal; refresh token hanya disimpan sebagai digest. Replay mencabut session. Password memakai Argon2. |
@@ -94,7 +94,7 @@ berjalan bersamaan. Restore menolak database asal, nama target tanpa akhiran
 | Least privilege | Role runtime tanpa SUPERUSER/BYPASSRLS; role migrasi dan backup terpisah. Role backup baca seluruh tenant karena backup harus lengkap. |
 | Pengelolaan secret | File lokal diabaikan Git/Docker build context; generator acak; secret backup dibaca dari file. Untuk VPS simpan di `/etc/studyhub` berizin ketat atau secret manager. |
 | Logging aman | Route pattern, request ID, event/task ID; tidak menyimpan request body. Redaksi credential dan penekanan exception mentah mengurangi kebocoran parameter SQL. UUID aktor tetap data sensitif. |
-| Audit dasar | Login diterima/ditolak, replay refresh, logout, pembuatan user, perubahan subject. Ini log operasional; belum audit semua domain atau penyimpanan immutable. |
+| Audit | Login/replay/logout dan subject melalui log operasional. Direktori/kalender, enrollment, kolaborasi dan ujian memakai `academic_audit` dalam transaksi yang sama; trigger menolak update/delete audit akademik. Payload tidak memuat biodata atau isi soal/jawaban. |
 | Monitoring | Token metrik terpisah; label tidak berisi ID user/sekolah. Heartbeat dispatcher mendeteksi jalur beat→broker→worker→database, bukan sekadar proses API hidup. |
 | Retensi | Log Docker maksimal 3 file ×10 MB per container; backup 7 harian/4 mingguan/6 bulanan; metrik 15 hari atau 1 GB. |
 | Cleanup database | Maksimal 500 session yang kedaluwarsa >30 hari dan 500 outbox delivered >14 hari per hari. Session aktif, record replay-nya, outbox pending, job/idempotency, dan data akademik dipertahankan. Query retensi diberi index. |
@@ -169,3 +169,18 @@ Redis Pub/Sub dan WebSocket. Pilihan ganda dinilai otomatis, esai oleh guru; nil
 ditahan sampai rilis eksplisit. Respons autosave ringkas, tanpa paket soal ulang.
 
 Lihat [spesifikasi, endpoint, aturan dan cara upgrade](SISWA_DAN_PELAKSANAAN_UJIAN.md).
+
+## Direktori dan katalog sekolah (v0.6.0)
+
+CRUD siswa, guru dan admin memakai profil lokal sekolah. Akun login global tetap
+terpisah supaya admin sebuah sekolah tidak dapat mengganti email/password milik
+orang yang juga terdaftar di sekolah lain. Penghapusan direktori menonaktifkan
+membership, mempertahankan enrollment dan ujian, serta dapat dipulihkan.
+
+Tahun ajaran memiliki satu atau dua semester; kalender divalidasi agar urut dan
+tidak tumpang tindih. Katalog kelas terpisah dari wali kelas/ruangan per semester.
+Data yang sudah menjadi referensi riwayat dibatasi pengubahan/penghapusannya.
+`expected_revision` dan row lock menangani edit bersamaan, admin terakhir dan
+penonaktifan siswa yang sedang ujian. Data baru tetap dibatasi RLS/composite FK.
+
+Baca [kamus data, daftar CRUD, contoh payload dan prosedur migrasi](CRUD_DAN_STRUKTUR_DATA.md).

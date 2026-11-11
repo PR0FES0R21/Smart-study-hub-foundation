@@ -50,6 +50,7 @@ class Membership(Base):
     __tablename__ = "memberships"
     __table_args__ = (
         CheckConstraint("role IN ('admin','teacher','student')", name="role"),
+        CheckConstraint("revision > 0", name="revision"),
         Index("ix_memberships_user_id", "user_id"),
     )
     school_id: Mapped[uuid.UUID] = mapped_column(
@@ -60,6 +61,7 @@ class Membership(Base):
     )
     role: Mapped[str] = mapped_column(String(16))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class ExternalIdentity(Base):
@@ -110,6 +112,7 @@ class ExpertiseProgram(Base):
         UniqueConstraint("school_id", "code"),
         UniqueConstraint("id", "school_id"),
         CheckConstraint("school_level = 'SMK'", name="smk_only"),
+        CheckConstraint("revision > 0", name="revision"),
         ForeignKeyConstraint(
             ["school_id", "school_level"], ["schools.id", "schools.level"], ondelete="CASCADE"
         ),
@@ -119,12 +122,15 @@ class ExpertiseProgram(Base):
     school_level: Mapped[str] = mapped_column(String(3), default="SMK")
     code: Mapped[str] = mapped_column(String(24))
     name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(String(1000))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class SchoolClass(Base):
     __tablename__ = "school_classes"
     __table_args__ = (
         UniqueConstraint("school_id", "name"),
+        CheckConstraint("revision > 0", name="revision"),
         UniqueConstraint("id", "school_id", name="uq_school_classes_id_school"),
         ForeignKeyConstraint(
             ["school_id", "school_level"], ["schools.id", "schools.level"], ondelete="CASCADE"
@@ -144,6 +150,7 @@ class SchoolClass(Base):
     name: Mapped[str] = mapped_column(String(120))
     grade_level: Mapped[int] = mapped_column(Integer)
     program_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class Job(Base):

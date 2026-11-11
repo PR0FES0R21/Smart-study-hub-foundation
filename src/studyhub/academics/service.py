@@ -20,6 +20,11 @@ from studyhub.models import Membership, SchoolClass, Subject, User
 ScopeID = UUID | SQLColumnExpression[UUID]
 
 
+def check_revision(row, expected: int) -> None:
+    if row.revision != expected:
+        raise HTTPException(409, "Resource changed; reload before saving")
+
+
 def audit(db: AsyncSession, p: Principal, action: str, resource_id: UUID, **details) -> None:
     # IDs and state changes only: never log prompts, answers or authentication material.
     db.add(
@@ -34,9 +39,11 @@ def audit(db: AsyncSession, p: Principal, action: str, resource_id: UUID, **deta
 
 
 async def record[Record: Base](
-    db: AsyncSession, model: type[Record], school_id: UUID, record_id: UUID
+    db: AsyncSession, model: type[Record], school_id: UUID, record_id: UUID, *, lock: bool = False
 ) -> Record:
     query = select(model).where(model.school_id == school_id, model.id == record_id)
+    if lock:
+        query = query.with_for_update(read=True).execution_options(populate_existing=True)
     row = await db.scalar(query)
     if row is None:
         raise HTTPException(404, "Resource not found")
@@ -52,6 +59,7 @@ async def open_period(
         select(AcademicPeriod)
         .where(AcademicPeriod.id == period_id, AcademicPeriod.school_id == school_id)
         .with_for_update(read=not exclusive)
+        .execution_options(populate_existing=True)
     )
     if period is None:
         raise HTTPException(404, "Academic period not found")
@@ -150,7 +158,7 @@ async def create_assignment(
     db: AsyncSession, p: Principal, data: AssignmentCreate
 ) -> TeachingAssignment:
     await open_period(db, p.school_id, data.period_id, exclusive=True)
-    await record(db, SchoolClass, p.school_id, data.class_id)
+    await record(db, SchoolClass, p.school_id, data.class_id, lock=True)
     await record(db, Subject, p.school_id, data.subject_id)
     await eligible_teacher(db, p.school_id, data.teacher_id)
     assignment = TeachingAssignment(school_id=p.school_id, **data.model_dump())

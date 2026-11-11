@@ -31,6 +31,7 @@ class PeriodCreate(Input):
 
 class PeriodRead(Read, PeriodCreate):
     status: str
+    revision: int
 
 
 class AssignmentCreate(Input):

@@ -33,16 +33,63 @@ class AcademicPeriod(SchoolRecord, Base):
     __table_args__ = (
         UniqueConstraint("id", "school_id"),
         UniqueConstraint("school_id", "year_start", "semester"),
+        ForeignKeyConstraint(
+            ["school_id", "year_start"], ["academic_years.school_id", "academic_years.year_start"]
+        ),
         CheckConstraint("semester IN (1,2)", name="semester"),
         CheckConstraint("year_start BETWEEN 2000 AND 2200", name="year"),
         CheckConstraint("ends_on >= starts_on", name="dates"),
         CheckConstraint("status IN ('open','closed')", name="status"),
+        CheckConstraint("revision > 0", name="revision"),
     )
     year_start: Mapped[int] = mapped_column(Integer)
     semester: Mapped[int] = mapped_column(Integer)
     starts_on: Mapped[date] = mapped_column(Date)
     ends_on: Mapped[date] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(16), default="open", server_default="open")
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+
+class AcademicYear(SchoolRecord, Base):
+    __tablename__ = "academic_years"
+    __table_args__ = (
+        UniqueConstraint("school_id", "year_start"),
+        CheckConstraint("year_start BETWEEN 2000 AND 2200", name="year"),
+        CheckConstraint("revision > 0", name="revision"),
+    )
+    year_start: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str | None] = mapped_column(String(1000))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+    @property
+    def label(self) -> str:
+        return f"{self.year_start}/{self.year_start + 1}"
+
+
+class ClassOffering(SchoolRecord, Base):
+    """Semester-specific homeroom metadata; the class catalog stays reusable."""
+
+    __tablename__ = "class_offerings"
+    __table_args__ = (
+        UniqueConstraint("school_id", "period_id", "class_id"),
+        ForeignKeyConstraint(
+            ["period_id", "school_id"], ["academic_periods.id", "academic_periods.school_id"]
+        ),
+        ForeignKeyConstraint(
+            ["class_id", "school_id"], ["school_classes.id", "school_classes.school_id"]
+        ),
+        ForeignKeyConstraint(
+            ["school_id", "homeroom_teacher_id"], ["memberships.school_id", "memberships.user_id"]
+        ),
+        CheckConstraint("revision > 0", name="revision"),
+        Index("ix_offering_class", "class_id", "school_id"),
+        Index("ix_offering_homeroom", "school_id", "homeroom_teacher_id"),
+    )
+    period_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    class_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    homeroom_teacher_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    room: Mapped[str | None] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class TeachingAssignment(SchoolRecord, Base):

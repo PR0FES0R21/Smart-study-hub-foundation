@@ -4,6 +4,11 @@ Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
 
+Rilis **0.6.0** melengkapi CRUD siswa, guru, admin sekolah, kelas, program keahlian,
+tahun ajaran dan semester. Biodata dipisah dari identitas login global; penghapusan
+akses mempertahankan riwayat dan wali kelas disimpan per semester. Baca
+[panduan CRUD, struktur data dan migrasi](docs/CRUD_DAN_STRUKTUR_DATA.md).
+
 Rilis **0.5.0** menambahkan riwayat siswa per semester, kenaikan/tinggal kelas,
 kelulusan SMP/SMA/SMK, roster ujian, autosave jawaban, deadline server dan Celery,
 penilaian pilihan ganda/esai serta rilis nilai. Baca
@@ -83,6 +88,9 @@ Jalankan tepat satu beat per environment. Beberapa dispatcher aman menggunakan
 | `POST /api/v1/auth/logout` | Mencabut session dan access token terkait |
 | `GET /api/v1/users/me` | Profil pengguna aktif |
 | `GET, POST /api/v1/users` | Admin; membuat teacher/student, tidak menerima role admin |
+| `/api/v1/students`, `/teachers`, `/school-admins` | CRUD direktori; penonaktifan/pemulihan akses sekolah dan revisi untuk konflik edit |
+| `/api/v1/academic-years`, `/academic-periods` | CRUD tahun/semester, kalender tanpa tumpang tindih, perlindungan riwayat |
+| `/api/v1/classes`, `/expertise-programs`, `/class-offerings` | CRUD kelas/program, wali kelas dan ruangan per semester |
 | `GET /api/v1/subjects` | Pengguna aktif; pagination dibatasi |
 | `GET /api/v1/subjects/{id}` | Detail dari PostgreSQL |
 | `POST, PUT, DELETE /api/v1/subjects[/{id}]` | Admin; unique code, transaksi dan invalidasi |
@@ -112,7 +120,7 @@ SMA dan SMK memiliki aturan kelas/program yang divalidasi sampai database.
 ```text
 src/studyhub/
   api/                 # route, validasi input/output, auth dependency, WebSocket
-  academics/           # periode, tugas mengajar, koordinasi dan audit
+  academics/           # direktori, kalender/kelas, enrollment, tugas mengajar, koordinasi, audit
   assessments/         # soal, review, modul berversi dan konfigurasi ujian kelas
   core/                # konfigurasi, principal dan primitive keamanan
   infrastructure/      # database factory, Redis, cache, Pub/Sub, outbound HTTP

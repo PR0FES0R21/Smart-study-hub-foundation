@@ -32,8 +32,15 @@ def school_case(stack, client):
     with Session(stack["engine"]) as db, db.begin():
         db.add_all(
             [
-                School(id=school_id, code=uuid4().hex[:20], name="Collaboration SMK", level="SMK"),
-                School(id=other_school, code=uuid4().hex[:20], name="Other SMK", level="SMK"),
+                School(
+                    id=school_id,
+                    code=uuid4().hex[:20].upper(),
+                    name="Collaboration SMK",
+                    level="SMK",
+                ),
+                School(
+                    id=other_school, code=uuid4().hex[:20].upper(), name="Other SMK", level="SMK"
+                ),
             ]
         )
         db.flush()

@@ -9,10 +9,16 @@ from pydantic import Field, model_validator
 from studyhub.academics.schemas import Input, Read
 
 
-class StudentCreate(Input):
-    user_id: uuid.UUID
+class StudentFields(Input):
     student_number: str | None = Field(default=None, min_length=1, max_length=32)
+    nisn: str | None = Field(default=None, pattern=r"^[0-9]{10}$")
+    admitted_on: date | None = None
+    previous_school: str | None = Field(default=None, min_length=1, max_length=200)
     graduation_grade: int = Field(ge=9, le=13)
+
+
+class StudentCreate(StudentFields):
+    user_id: uuid.UUID
 
 
 class StudentRead(Read, StudentCreate):

@@ -1,9 +1,10 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from studyhub.academics.people_models import MemberProfile
 from studyhub.academics.student_models import StudentProfile
 from studyhub.api.dependencies import Principal, database, educator, student
 from studyhub.assessments import delivery_service as service
@@ -61,9 +62,18 @@ async def participants(
         if name not in {"full_name", "student_number"}
     ]
     query = (
-        select(*columns, User.full_name, StudentProfile.student_number)
+        select(
+            *columns,
+            func.coalesce(MemberProfile.full_name, User.full_name).label("full_name"),
+            StudentProfile.student_number,
+        )
         .join(StudentProfile, StudentProfile.id == ExamParticipant.student_id)
         .join(User, User.id == StudentProfile.user_id)
+        .outerjoin(
+            MemberProfile,
+            (MemberProfile.user_id == User.id)
+            & (MemberProfile.school_id == StudentProfile.school_id),
+        )
         .where(ExamParticipant.school_id == p.school_id, ExamParticipant.exam_id == exam_id)
         .order_by(ExamParticipant.id)
         .limit(limit)

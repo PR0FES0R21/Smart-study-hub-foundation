@@ -28,6 +28,8 @@ class StudentProfile(SchoolRecord, Base):
         UniqueConstraint("id", "school_id"),
         UniqueConstraint("school_id", "user_id"),
         UniqueConstraint("school_id", "student_number", name="uq_student_number"),
+        UniqueConstraint("school_id", "nisn", name="uq_student_nisn"),
+        CheckConstraint("nisn IS NULL OR nisn ~ '^[0-9]{10}$'", name="nisn"),
         ForeignKeyConstraint(
             ["school_id", "user_id"], ["memberships.school_id", "memberships.user_id"]
         ),
@@ -47,6 +49,9 @@ class StudentProfile(SchoolRecord, Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     student_number: Mapped[str | None] = mapped_column(String(32))
+    nisn: Mapped[str | None] = mapped_column(String(10))
+    admitted_on: Mapped[date | None] = mapped_column(Date)
+    previous_school: Mapped[str | None] = mapped_column(String(200))
     school_level: Mapped[str] = mapped_column(String(3))
     graduation_grade: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")

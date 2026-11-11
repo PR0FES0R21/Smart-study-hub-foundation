@@ -5,12 +5,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from studyhub.academics import service
+from studyhub.academics.catalog_service import create_period as save_period
 from studyhub.academics.models import (
     AcademicAudit,
     AcademicPeriod,
     CoordinationGroup,
     TeachingAssignment,
 )
+from studyhub.academics.people_models import MemberProfile
 from studyhub.academics.schemas import (
     AssignmentCreate,
     AssignmentRead,
@@ -32,12 +34,7 @@ router = APIRouter(prefix="/api/v1", tags=["academics"])
 async def create_period(
     data: PeriodCreate, p: Principal = Depends(administrator), db: AsyncSession = Depends(database)
 ):
-    period = AcademicPeriod(school_id=p.school_id, **data.model_dump())
-    db.add(period)
-    await db.flush()
-    service.audit(db, p, "period.created", period.id)
-    await db.commit()
-    return period
+    return await save_period(db, p, data)
 
 
 @router.get("/academic-periods", response_model=list[PeriodRead])
@@ -77,6 +74,7 @@ async def close_period(
     ):
         raise HTTPException(409, "Close published exam windows before closing the academic period")
     period.status = "closed"
+    period.revision += 1
     service.audit(db, p, "period.closed", period.id)
     await db.commit()
     return period
@@ -180,8 +178,15 @@ async def group_teachers(
     group = await service.group_access(db, p, group_id)
     rows = (
         await db.execute(
-            select(User.id, User.full_name)
+            select(
+                User.id, func.coalesce(MemberProfile.full_name, User.full_name).label("full_name")
+            )
             .join(Membership, Membership.user_id == User.id)
+            .outerjoin(
+                MemberProfile,
+                (MemberProfile.user_id == User.id)
+                & (MemberProfile.school_id == Membership.school_id),
+            )
             .where(
                 Membership.school_id == p.school_id,
                 Membership.role == "teacher",

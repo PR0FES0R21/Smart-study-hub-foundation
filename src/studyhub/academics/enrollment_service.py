@@ -17,7 +17,9 @@ from studyhub.core.principal import Principal
 from studyhub.models import Membership, SchoolClass, User
 
 
-async def create_student(db: AsyncSession, p: Principal, data: StudentCreate) -> StudentProfile:
+async def create_student(
+    db: AsyncSession, p: Principal, data: StudentCreate, *, commit: bool = True
+) -> StudentProfile:
     eligible = await db.scalar(
         select(User.id)
         .join(Membership)
@@ -41,7 +43,8 @@ async def create_student(db: AsyncSession, p: Principal, data: StudentCreate) ->
     db.add(student)
     await db.flush()
     audit(db, p, "student.created", student.id)
-    await db.commit()
+    if commit:
+        await db.commit()
     return student
 
 
@@ -58,6 +61,20 @@ async def locked_student(
         raise HTTPException(404, "Student not found")
     if student.status != "active":
         raise HTTPException(409, "Student is no longer active")
+    membership = await db.scalar(
+        select(Membership.user_id)
+        .join(User)
+        .where(
+            Membership.school_id == school_id,
+            Membership.user_id == student.user_id,
+            Membership.role == "student",
+            Membership.is_active.is_(True),
+            User.is_active.is_(True),
+        )
+        .with_for_update(read=True, of=Membership)
+    )
+    if membership is None:
+        raise HTTPException(409, "Student membership is inactive")
     return student
 
 
@@ -66,7 +83,7 @@ async def enroll_student(
 ) -> StudentEnrollment:
     await open_period(db, p.school_id, data.period_id)
     student = await locked_student(db, p.school_id, data.student_id)
-    classroom = await record(db, SchoolClass, p.school_id, data.class_id)
+    classroom = await record(db, SchoolClass, p.school_id, data.class_id, lock=True)
     if classroom.grade_level > student.graduation_grade:
         raise HTTPException(422, "Class exceeds the student's graduation grade")
     if await db.scalar(
@@ -132,7 +149,7 @@ async def transition_student(
     target = None
     if data.target_period_id:
         next_period = by_id[data.target_period_id]
-        next_class = await record(db, SchoolClass, p.school_id, data.target_class_id)
+        next_class = await record(db, SchoolClass, p.school_id, data.target_class_id, lock=True)
         if (
             next_period.status != "open"
             or next_period.starts_on <= period.ends_on

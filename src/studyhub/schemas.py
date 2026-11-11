@@ -98,12 +98,14 @@ class MembershipCreate(Input):
 class ProgramCreate(Input):
     code: str = Field(min_length=1, max_length=24, pattern=r"^[A-Z0-9_-]+$")
     name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class ProgramRead(ProgramCreate):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     school_id: UUID
+    revision: int
 
 
 class ClassCreate(Input):
@@ -116,3 +118,4 @@ class ClassRead(ClassCreate):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     school_id: UUID
+    revision: int

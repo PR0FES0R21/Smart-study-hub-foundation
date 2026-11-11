@@ -13,6 +13,107 @@ from studyhub.core.config import Settings
 pytestmark = pytest.mark.integration
 
 
+def test_directory_backfills_existing_accounts_and_years_and_guards_downgrade():
+    if os.getenv("STUDYHUB_RUN_INTEGRATION") != "1":
+        pytest.skip("Integration infrastructure required")
+    base = make_url(Settings().sync_migration_url)
+    name = f"studyhub_directory_{uuid4().hex[:8]}_test"
+    admin = create_engine(base.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    engine = create_engine(base.set(database=name))
+    url = base.set(database=name, drivername="postgresql+asyncpg").render_as_string(
+        hide_password=False
+    )
+    env = {**os.environ, "STUDYHUB_DATABASE_URL": url, "STUDYHUB_MIGRATION_DATABASE_URL": url}
+
+    def migrate(*args, check=True):
+        return subprocess.run(
+            [sys.executable, "-m", "alembic", *args], env=env, capture_output=True, check=check
+        )
+
+    ids = {key: uuid4() for key in ("school", "user", "period")}
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'CREATE DATABASE "{name}"'))
+        migrate("upgrade", "a51d8e70bc92")
+        with engine.begin() as conn:
+            for statement in (
+                "INSERT INTO schools(id,code,name,level) VALUES (:school,'OLD_DIRECTORY','Old directory','SMP')",
+                "INSERT INTO users(id,email,full_name,is_active) VALUES (:user,'old-directory@example.org','Original teacher',true)",
+                "INSERT INTO memberships(school_id,user_id,role,is_active) VALUES (:school,:user,'teacher',false)",
+                "INSERT INTO academic_periods(id,school_id,year_start,semester,starts_on,ends_on) VALUES (:period,:school,2026,1,'2026-07-01','2026-12-31')",
+            ):
+                conn.execute(text(statement), ids)
+        migrate("upgrade", "head")
+        migrate("check")
+        with engine.connect() as conn:
+            assert (
+                conn.scalar(
+                    text(
+                        "SELECT full_name FROM member_profiles WHERE school_id=:school AND user_id=:user"
+                    ),
+                    ids,
+                )
+                == "Original teacher"
+            )
+            assert (
+                conn.scalar(
+                    text(
+                        "SELECT count(*) FROM teacher_profiles WHERE school_id=:school AND user_id=:user"
+                    ),
+                    ids,
+                )
+                == 1
+            )
+            assert conn.execute(
+                text(
+                    "SELECT is_active,revision FROM memberships WHERE school_id=:school AND user_id=:user"
+                ),
+                ids,
+            ).one() == (False, 1)
+            assert (
+                conn.scalar(
+                    text("SELECT year_start FROM academic_years WHERE school_id=:school"), ids
+                )
+                == 2026
+            )
+        migrate("downgrade", "a51d8e70bc92")
+        migrate("upgrade", "head")
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE member_profiles SET phone_number='+628123456789' WHERE school_id=:school AND user_id=:user"
+                ),
+                ids,
+            )
+        failed = migrate("downgrade", "a51d8e70bc92", check=False)
+        assert (
+            failed.returncode != 0
+            and b"Refusing lossy directory/catalog downgrade" in failed.stderr
+        )
+        with engine.connect() as conn:
+            assert conn.scalar(text("SELECT version_num FROM alembic_version")) == "b60a9c12de73"
+            assert (
+                conn.scalar(
+                    text(
+                        "SELECT phone_number FROM member_profiles WHERE school_id=:school AND user_id=:user"
+                    ),
+                    ids,
+                )
+                == "+628123456789"
+            )
+            assert (
+                conn.scalar(
+                    text("SELECT relforcerowsecurity FROM pg_class WHERE relname='member_profiles'")
+                )
+                is True
+            )
+    finally:
+        engine.dispose()
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()
+
+
 def test_single_school_backfill_and_lossy_downgrade_guard():
     if os.getenv("STUDYHUB_RUN_INTEGRATION") != "1":
         pytest.skip("Integration infrastructure required")
@@ -328,7 +429,7 @@ def test_delivery_upgrade_backfills_existing_exams_and_guards_student_data():
         failed = migrate("downgrade", "f47b2a91cd30", check=False)
         assert failed.returncode != 0 and b"Refusing lossy student/exam downgrade" in failed.stderr
         with engine.connect() as conn:
-            assert conn.scalar(text("SELECT version_num FROM alembic_version")) == "a51d8e70bc92"
+            assert conn.scalar(text("SELECT version_num FROM alembic_version")) == "b60a9c12de73"
             assert conn.scalar(text("SELECT count(*) FROM student_profiles")) == 1
             assert (
                 conn.scalar(

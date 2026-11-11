@@ -1,4 +1,39 @@
-# Hasil verifikasi v0.3.1 — 10 November 2026
+# Hasil verifikasi Smart Study Hub Foundation
+
+## v0.6.0 — direktori dan katalog akademik (11 November 2026)
+
+Suite lengkap lokal: **107 passed**, 78,57 detik. Pengujian memakai PostgreSQL 16
+dengan role runtime tanpa BYPASSRLS, tiga Redis, dua proses API, worker/beat Celery,
+IdP OIDC lokal dan Restic backup/restore. Ruff lint/format, `git diff --check`,
+`uv lock --check --offline`, dan pembentukan OpenAPI 0.6.0 lulus. Tidak ada perubahan
+dependensi; metadata versi project/lock diperbarui bersama.
+
+| Area | Bukti yang diuji |
+|---|---|
+| Registrasi | Akun + membership + biodata + profil atomik; login berhasil; konflik NISN tidak meninggalkan akun yatim |
+| Isolasi identitas | Edit biodata sekolah tidak mengubah akun global; email yang sudah ada tidak menjadi penautan/reset implisit |
+| RBAC dan RLS | Direktori hanya untuk admin; empat tabel baru FORCE RLS; pembacaan/penulisan lintas sekolah ditolak |
+| CRUD | Siswa, guru, admin, tahun ajaran, semester, kelas, program dan wali kelas per semester; validasi jenjang SMP/SMA/SMK |
+| Riwayat | Penonaktifan/pemulihan akses mempertahankan enrollment; jalur kelulusan dan struktur kelas yang sudah dipakai tidak dapat ditimpa |
+| Concurrency | Dua edit memakai revisi sama hanya menghasilkan satu sukses; race kelas vs enrollment, kalender bertabrakan dan penonaktifan vs start ujian terlindungi |
+| Admin terakhir | Dua admin saling menonaktifkan tetap meninggalkan satu admin aktif |
+| Row lock | Kalender yang sedang menunggu lock semester tidak memblokir pemeriksaan FK saat registrasi guru di sekolah yang sama |
+| Penanggung jawab | Guru koordinator/wali kelas periode terbuka harus dialihkan sebelum dinonaktifkan |
+| Migrasi | Upgrade/check/downgrade/upgrade; backfill nama, guru dan tahun mempertahankan status nonaktif; downgrade yang menghilangkan biodata ditolak |
+| Regresi | Autentikasi/SSO, mapel/cache, kolaborasi, siswa/ujian, WebSocket, Celery dan operasi backup/restore tetap lulus |
+
+Fixture sekolah diperbaiki agar kode acaknya memenuhi kontrak kode huruf besar
+yang juga diterapkan API. Pengujian menggunakan database sementara; database
+aplikasi yang sudah berjalan **belum di-upgrade** dalam perubahan ini. Deployment
+memerlukan migrasi dan restart API/worker/beat bersama; panduan tersedia di
+[CRUD dan struktur data](CRUD_DAN_STRUKTUR_DATA.md).
+
+Hasil ini merupakan verifikasi fungsional dan concurrency lokal. Build image,
+benchmark beban produksi, scan CVE baru dan deployment VPS tidak dilakukan.
+Status GitHub Actions diperiksa terpisah setelah push; kelulusan lokal tidak
+menyatakan bahwa runner GitHub berhasil menjalankan CI.
+
+## Riwayat v0.3.1 — 10 November 2026
 
 Seluruh perbaikan audit telah diterapkan ke source repository utama. Pengujian
 menggunakan PostgreSQL 16, tiga Redis 7.4, dua API, Celery prefork/beat, IdP lokal
