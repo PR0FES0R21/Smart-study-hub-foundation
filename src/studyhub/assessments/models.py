@@ -95,6 +95,20 @@ class ModuleVersion(SchoolRecord, Base):
 class ClassExam(SchoolRecord, Base):
     __tablename__ = "class_exams"
     __table_args__ = (
+        UniqueConstraint("id", "school_id", "class_id", "period_id", name="uq_class_exam_scope"),
+        ForeignKeyConstraint(
+            ["assignment_id", "school_id", "class_id", "period_id"],
+            [
+                "teaching_assignments.id",
+                "teaching_assignments.school_id",
+                "teaching_assignments.class_id",
+                "teaching_assignments.period_id",
+            ],
+            name="fk_class_exam_assignment_period",
+        ),
+        CheckConstraint("duration_minutes BETWEEN 1 AND 360", name="duration"),
+        CheckConstraint("state IN ('draft','published')", name="state"),
+        CheckConstraint("revision > 0", name="revision"),
         UniqueConstraint("module_version_id", "class_id"),
         ForeignKeyConstraint(
             ["module_version_id", "school_id"], ["module_versions.id", "module_versions.school_id"]
@@ -120,3 +134,9 @@ class ClassExam(SchoolRecord, Base):
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    period_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60, server_default="60")
+    state: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft")
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    results_released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

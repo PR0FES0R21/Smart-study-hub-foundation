@@ -135,3 +135,21 @@ rejects inconsistent answer keys, duplicate module items, missing revisions and
 timezone-free exam dates. This is functional/concurrency validation, not a load
 benchmark or evidence that a production deployment is active. GitHub Actions
 status must be checked independently of these local results.
+
+
+## v0.5.0 — student progression and exam delivery (2026-11-11)
+
+Local full suite: **88 passed** with real PostgreSQL/Redis, two API processes,
+Celery worker/beat, test OIDC provider, and Restic backup/restore. The student
+workflow suite is additionally run after refining the authorized teacher roster
+response to include names/NIS without exposing email addresses. Ruff lint/format,
+`git diff --check`, and `uv lock --check --offline` pass. Dependencies are unchanged.
+
+Coverage includes preserved legacy class exams during migration, non-lossy
+downgrade guards, enrollment history, SMK three/four-year graduation, concurrent
+progression and autosave, idempotent starts/submissions, deadline checks after
+waiting on row locks, real Celery expiry for disconnected students, peer/tenant
+isolation, co-teaching access, immutable submitted answers, manual essay grading,
+and explicit result release. Student serializers exclude solution keys/rubrics
+and withhold scores until publication. This is functional/concurrency verification,
+not a production load benchmark or evidence of a running deployment.

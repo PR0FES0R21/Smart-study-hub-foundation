@@ -129,6 +129,7 @@ class VersionRead(VersionSummary):
 
 
 class ClassExamCreate(Input):
+    duration_minutes: int = Field(default=60, ge=1, le=360)
     module_version_id: UUID
     assignment_id: UUID
     starts_at: AwareDatetime
@@ -142,5 +143,9 @@ class ClassExamCreate(Input):
 
 
 class ClassExamRead(Read, ClassExamCreate):
+    period_id: UUID
+    state: str
+    revision: int
+    results_released_at: datetime | None
     class_id: UUID
     created_by: UUID

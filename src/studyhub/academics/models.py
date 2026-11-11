@@ -49,6 +49,9 @@ class TeachingAssignment(SchoolRecord, Base):
     __tablename__ = "teaching_assignments"
     __table_args__ = (
         UniqueConstraint("id", "school_id", "class_id", name="uq_teaching_assignment_class"),
+        UniqueConstraint(
+            "id", "school_id", "class_id", "period_id", name="uq_teaching_assignment_period"
+        ),
         UniqueConstraint("id", "school_id"),
         UniqueConstraint(
             "school_id",

@@ -105,3 +105,9 @@ async def platform_administrator(principal: Principal = Depends(current_user)) -
     if not principal.user.is_platform_admin:
         raise HTTPException(403, "Platform administrator required")
     return principal
+
+
+async def student(principal: Principal = Depends(school_context)) -> Principal:
+    if principal.membership.role != "student":
+        raise HTTPException(403, "Student role required")
+    return principal

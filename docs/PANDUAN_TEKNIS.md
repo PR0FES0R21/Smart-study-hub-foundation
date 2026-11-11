@@ -153,3 +153,19 @@ contoh payload, alasan penggunaan row lock dan snapshot JSONB, serta batas fitur
 yang sudah tersedia. Celery tetap untuk pekerjaan latar belakang; operasi review
 dan publikasi ini diselesaikan dalam transaksi PostgreSQL agar hasilnya langsung
 konsisten. Data otorisasi dan kunci soal tidak disimpan pada cache bersama.
+
+
+## Riwayat siswa dan pengerjaan ujian (v0.5.0)
+
+Profil siswa melekat pada sekolah, sedangkan enrollment merekam kelas per semester.
+Kenaikan kelas menutup enrollment asal dan membuat yang baru; kelulusan menyimpan
+status/tanggal tanpa menghapus riwayat. SMP/SMA/SMK memakai tingkat kelulusan yang
+divalidasi database, termasuk SMK kelas 13.
+
+Jawaban ujian disimpan di PostgreSQL dengan revisi untuk mencegah overwrite dari
+dua perangkat. Tenggat dihitung server, dan Celery menutup sesi kedaluwarsa saat
+siswa putus koneksi. Transactional outbox meneruskan notifikasi privat melalui
+Redis Pub/Sub dan WebSocket. Pilihan ganda dinilai otomatis, esai oleh guru; nilai
+ditahan sampai rilis eksplisit. Respons autosave ringkas, tanpa paket soal ulang.
+
+Lihat [spesifikasi, endpoint, aturan dan cara upgrade](SISWA_DAN_PELAKSANAAN_UJIAN.md).

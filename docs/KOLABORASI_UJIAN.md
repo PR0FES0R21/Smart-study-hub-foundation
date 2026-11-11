@@ -1,5 +1,9 @@
 # Kolaborasi guru dan modul ujian — v0.4.0
 
+**Pembaruan v0.5.0:** enrollment, kenaikan/kelulusan, pengerjaan siswa, autosave,
+deadline dan penilaian kini tersedia. Lihat [panduan pelaksanaan ujian](SISWA_DAN_PELAKSANAAN_UJIAN.md).
+Bagian batas fitur di bawah mendeskripsikan rilis awal v0.4.
+
 Rilis ini menambahkan alur operasional dari penugasan mengajar sampai penggunaan
 paket soal terbit pada kelas. Semua endpoint memakai access token dan header
 `X-School-ID`. Contoh dapat dicoba melalui `/docs` pada lingkungan pengembangan.

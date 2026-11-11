@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from studyhub.academics import service
@@ -63,6 +63,19 @@ async def close_period(
     period_id: UUID, p: Principal = Depends(administrator), db: AsyncSession = Depends(database)
 ):
     period = await service.open_period(db, p.school_id, period_id, exclusive=True)
+    from studyhub.assessments.models import ClassExam
+
+    if await db.scalar(
+        select(ClassExam.id)
+        .where(
+            ClassExam.school_id == p.school_id,
+            ClassExam.period_id == period_id,
+            ClassExam.state == "published",
+            ClassExam.ends_at > func.clock_timestamp(),
+        )
+        .limit(1)
+    ):
+        raise HTTPException(409, "Close published exam windows before closing the academic period")
     period.status = "closed"
     service.audit(db, p, "period.closed", period.id)
     await db.commit()

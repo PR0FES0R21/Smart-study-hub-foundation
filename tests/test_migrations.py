@@ -213,8 +213,7 @@ def test_academic_upgrade_preserves_classes_and_refuses_lossy_downgrade():
                 ),
                 {"id": classroom, "school": school},
             )
-        migrate("upgrade", "head")
-        migrate("check")
+        migrate("upgrade", "f47b2a91cd30")
         with engine.begin() as conn:
             assert (
                 conn.scalar(text("SELECT name FROM school_classes WHERE id=:id"), {"id": classroom})
@@ -246,8 +245,99 @@ def test_academic_upgrade_preserves_classes_and_refuses_lossy_downgrade():
                 conn.scalar(text("SELECT name FROM school_classes WHERE id=:id"), {"id": classroom})
                 == "12 TKJ"
             )
+        migrate("upgrade", "f47b2a91cd30")
+    finally:
+        engine.dispose()
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()
+
+
+def test_delivery_upgrade_backfills_existing_exams_and_guards_student_data():
+    if os.getenv("STUDYHUB_RUN_INTEGRATION") != "1":
+        pytest.skip("Integration infrastructure required")
+    base = make_url(Settings().sync_migration_url)
+    name = f"studyhub_delivery_{uuid4().hex[:8]}_test"
+    admin = create_engine(base.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    engine = create_engine(base.set(database=name))
+    url = base.set(database=name, drivername="postgresql+asyncpg").render_as_string(
+        hide_password=False
+    )
+    env = {**os.environ, "STUDYHUB_DATABASE_URL": url, "STUDYHUB_MIGRATION_DATABASE_URL": url}
+
+    def migrate(*args, check=True):
+        return subprocess.run(
+            [sys.executable, "-m", "alembic", *args], env=env, capture_output=True, check=check
+        )
+
+    ids = {
+        name: uuid4()
+        for name in (
+            "school",
+            "user",
+            "period",
+            "subject",
+            "class",
+            "assignment",
+            "group",
+            "module",
+            "version",
+            "exam",
+            "student",
+        )
+    }
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'CREATE DATABASE "{name}"'))
+        migrate("upgrade", "f47b2a91cd30")
+        statements = [
+            "INSERT INTO schools(id,code,name,level) VALUES (:school,'OLD_DELIVERY','Existing school','SMK')",
+            "INSERT INTO users(id,email,full_name,is_active) VALUES (:user,'existing-delivery@example.org','Existing teacher',true)",
+            "INSERT INTO memberships(school_id,user_id,role,is_active) VALUES (:school,:user,'teacher',true)",
+            "INSERT INTO academic_periods(id,school_id,year_start,semester,starts_on,ends_on) VALUES (:period,:school,2026,1,'2026-07-01','2026-12-31')",
+            "INSERT INTO subjects(id,school_id,code,name) VALUES (:subject,:school,'M','Mathematics')",
+            "INSERT INTO school_classes(id,school_id,school_level,name,grade_level) VALUES (:class,:school,'SMK','12 A',12)",
+            "INSERT INTO teaching_assignments(id,school_id,period_id,class_id,subject_id,teacher_id) VALUES (:assignment,:school,:period,:class,:subject,:user)",
+            "INSERT INTO coordination_groups(id,school_id,school_level,period_id,subject_id,grade_level,coordinator_id) VALUES (:group,:school,'SMK',:period,:subject,12,:user)",
+            "INSERT INTO exam_modules(id,school_id,group_id,title,items) VALUES (:module,:school,:group,'Existing exam','[]')",
+            "INSERT INTO module_versions(id,school_id,module_id,group_id,version,snapshot,checksum,published_by) VALUES (:version,:school,:module,:group,1,'{}','test-checksum',:user)",
+            "INSERT INTO class_exams(id,school_id,module_version_id,assignment_id,class_id,created_by,starts_at,ends_at) VALUES (:exam,:school,:version,:assignment,:class,:user,'2026-11-15T08:00:00Z','2026-11-15T10:00:00Z')",
+        ]
+        with engine.begin() as conn:
+            for sql in statements:
+                conn.execute(text(sql), ids)
         migrate("upgrade", "head")
         migrate("check")
+        with engine.connect() as conn:
+            exam = conn.execute(
+                text(
+                    "SELECT period_id,state,duration_minutes,revision FROM class_exams WHERE id=:exam"
+                ),
+                ids,
+            ).one()
+            assert exam == (ids["period"], "draft", 60, 1)
+        migrate("downgrade", "f47b2a91cd30")
+        migrate("upgrade", "head")
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO student_profiles(id,school_id,user_id,school_level,graduation_grade) VALUES (:student,:school,:user,'SMK',12)"
+                ),
+                ids,
+            )
+        failed = migrate("downgrade", "f47b2a91cd30", check=False)
+        assert failed.returncode != 0 and b"Refusing lossy student/exam downgrade" in failed.stderr
+        with engine.connect() as conn:
+            assert conn.scalar(text("SELECT version_num FROM alembic_version")) == "a51d8e70bc92"
+            assert conn.scalar(text("SELECT count(*) FROM student_profiles")) == 1
+            assert (
+                conn.scalar(
+                    text(
+                        "SELECT relforcerowsecurity FROM pg_class WHERE relname='student_profiles'"
+                    )
+                )
+                is True
+            )
     finally:
         engine.dispose()
         with admin.connect() as conn:

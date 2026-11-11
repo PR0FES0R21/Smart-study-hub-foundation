@@ -261,6 +261,7 @@ async def create_class_exam(db: AsyncSession, p: Principal, data: ClassExamCreat
     ):
         raise HTTPException(422, "Exam dates must be inside the academic period")
     exam = ClassExam(
+        period_id=group.period_id,
         school_id=p.school_id,
         class_id=assignment.class_id,
         created_by=p.user.id,

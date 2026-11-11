@@ -3,6 +3,8 @@ from sqlalchemy import create_engine, pool
 
 from studyhub import models  # noqa: F401
 from studyhub.academics import models as academic_models  # noqa: F401
+from studyhub.academics import student_models  # noqa: F401
+from studyhub.assessments import delivery_models  # noqa: F401
 from studyhub.assessments import models as assessment_models  # noqa: F401
 from studyhub.core.config import get_settings
 from studyhub.infrastructure.database import Base

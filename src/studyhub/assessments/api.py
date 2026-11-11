@@ -2,8 +2,9 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from studyhub.academics.models import TeachingAssignment
 from studyhub.academics.service import group_access, record
@@ -210,8 +211,18 @@ async def exams(
         .where(ClassExam.school_id == p.school_id, TeachingAssignment.period_id == period_id)
     )
     if p.membership.role != "admin":
+        teaching = aliased(TeachingAssignment)
         query = query.where(
-            TeachingAssignment.teacher_id == p.user.id, TeachingAssignment.is_active.is_(True)
+            exists(
+                select(teaching.id).where(
+                    teaching.school_id == p.school_id,
+                    teaching.period_id == ClassExam.period_id,
+                    teaching.class_id == ClassExam.class_id,
+                    teaching.subject_id == TeachingAssignment.subject_id,
+                    teaching.teacher_id == p.user.id,
+                    teaching.is_active.is_(True),
+                )
+            )
         )
     return (
         await db.scalars(

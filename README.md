@@ -4,6 +4,11 @@ Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
 
+Rilis **0.5.0** menambahkan riwayat siswa per semester, kenaikan/tinggal kelas,
+kelulusan SMP/SMA/SMK, roster ujian, autosave jawaban, deadline server dan Celery,
+penilaian pilihan ganda/esai serta rilis nilai. Baca
+[panduan siswa dan pelaksanaan ujian](docs/SISWA_DAN_PELAKSANAAN_UJIAN.md).
+
 Rilis **0.4.0** menambahkan periode akademik, penugasan mengajar, koordinator
 mapel per tingkat kelas, pengajuan/review soal, modul ujian berversi dan konfigurasi
 ujian kelas dari paket bersama. Baca [panduan kolaborasi dan contoh API](docs/KOLABORASI_UJIAN.md).

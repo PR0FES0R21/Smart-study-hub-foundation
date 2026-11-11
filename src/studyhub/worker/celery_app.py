@@ -10,7 +10,9 @@ setup_logging.connect(configure_logging)
 
 settings = get_settings()
 celery_app = Celery(
-    "studyhub", broker=settings.broker_url.get_secret_value(), include=["studyhub.worker.tasks"]
+    "studyhub",
+    broker=settings.broker_url.get_secret_value(),
+    include=["studyhub.worker.tasks", "studyhub.worker.exams"],
 )
 celery_app.conf.update(
     task_serializer="json",
@@ -29,6 +31,7 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     beat_schedule={
+        "expire-exam-attempts": {"task": "studyhub.expire_exam_attempts", "schedule": 30.0},
         "cleanup-operations": {
             "task": "studyhub.cleanup_operations",
             "schedule": crontab(hour=3, minute=15),
