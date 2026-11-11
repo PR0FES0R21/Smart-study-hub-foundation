@@ -4,10 +4,6 @@ Panduan ini melengkapi [peta teknologi](PANDUAN_TEKNIS.md) dan
 [backup/restore](BACKUP_DAN_RESTORE.md). Konfigurasi adalah titik awal satu VPS;
 kapasitas, uptime dan pemulihan harus diuji sesuai kebutuhan sekolah.
 
-Untuk satu host aplikasi, satu host Redis dan satu host PostgreSQL, ikuti
-[panduan tiga VPS](DEPLOYMENT_TIGA_VPS.md). Compose lokal memerlukan penyesuaian
-environment dan dependensi; mengganti `.env` saja belum memisahkan stack ke tiga host.
-
 ## Persiapan host dan konfigurasi
 
 Gunakan Linux yang masih didukung, Docker Engine/Compose >=2.24.4, systemd,

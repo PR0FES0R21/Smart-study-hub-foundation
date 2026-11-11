@@ -1,9 +1,5 @@
 # Smart Study Hub — Foundation
 
-Mulai dari [peta dokumentasi dan status penerapan](docs/README.md).
-Untuk pemisahan host aplikasi, Redis, dan PostgreSQL, baca
-[panduan deployment tiga VPS](docs/DEPLOYMENT_TIGA_VPS.md).
-
 Fondasi backend baru untuk pengembangan Smart Study Hub. FastAPI + PostgreSQL 16,
 SQLAlchemy 2 async, Alembic, Celery dan Redis. Ini proyek terpisah; tidak menyalin
 fitur utuh atau memigrasikan data MongoDB proyek lama.
